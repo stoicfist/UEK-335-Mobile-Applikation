@@ -39,6 +39,10 @@ ion-fab {
   ion-chip {
     --background: rgba(255, 255, 255, 0.95);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    
+    ion-label {
+      color: #006400; // Dunkelgrün für bessere Lesbarkeit
+    }
   }
 }
 
