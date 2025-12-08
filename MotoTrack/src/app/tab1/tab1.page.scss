@@ -14,17 +14,6 @@ ion-content {
   --padding-end: 0;
 }
 
-/* Leaflet Zoom Controls unten links positionieren */
-#map .leaflet-top.leaflet-left {
-  top: auto !important;
-  bottom: 100px !important;
-  left: 16px !important;
-}
-
-#map .leaflet-control-zoom {
-  margin-top: 0 !important;
-}
-
 /* Location Button */
 .location-button {
   position: absolute;

@@ -9,8 +9,10 @@ export class MapService {
   private currentPositionMarker: L.Marker | null = null;
 
   initMap(mapContainer: string): L.Map {
-    // Erstelle die Karte
-    this.map = L.map(mapContainer).setView([47.3769, 8.5472], 13); // Zürich als Standard
+    // Erstelle die Karte ohne Zoom Controls
+    this.map = L.map(mapContainer, {
+      zoomControl: false,
+    }).setView([47.3769, 8.5472], 13); // Zürich als Standard
 
     // OpenStreetMap Layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
