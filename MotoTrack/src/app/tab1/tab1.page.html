@@ -16,6 +16,13 @@
     </ion-fab-button>
   </ion-fab>
 
+  <!-- Navigation FAB Button -->
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="navigation-fab">
+    <ion-fab-button (click)="toggleNavigation()" [color]="isNavigating ? 'warning' : 'tertiary'">
+      <ion-icon [name]="isNavigating ? 'stop-circle-outline' : 'navigate-outline'"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
   <!-- My Location FAB Button (bottom right) -->
   <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="location-fab">
     <ion-fab-button class="location-button" (click)="goToMyLocation()">

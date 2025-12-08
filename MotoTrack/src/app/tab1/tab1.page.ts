@@ -13,7 +13,7 @@ import { GeocodingService } from '../services/geocoding.service';
 import { RoutingService, LatLng } from '../services/routing.service';
 import { LocationService } from '../services/location.service';
 import { addIcons } from 'ionicons';
-import { locate, location, flag, search, closeCircle, navigate, close, radioButtonOnOutline, squareOutline } from 'ionicons/icons';
+import { locate, location, flag, search, closeCircle, navigate, close, radioButtonOnOutline, squareOutline, navigateOutline, stopCircleOutline } from 'ionicons/icons';
 
 interface RouteInfo {
   distance: string;
@@ -47,6 +47,12 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
   private recordingStartTime: number | null = null;
   private lastRecordedPoint: LatLng | null = null;
   private totalDistanceMeters = 0;
+
+  // Navigation state
+  isNavigating = false;
+  navigationWatchId: string | null = null;
+  userMarker: L.Marker | null = null;
+  routeCoordinates: LatLng[] = [];
   
   // Input fields
   startInput: string = '';
@@ -65,7 +71,7 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     private routingService: RoutingService,
     private locationService: LocationService
   ) {
-    addIcons({ locate, location, flag, search, closeCircle, navigate, close, radioButtonOnOutline, squareOutline });
+    addIcons({ locate, location, flag, search, closeCircle, navigate, close, radioButtonOnOutline, squareOutline, navigateOutline, stopCircleOutline });
   }
 
   ngAfterViewInit(): void {
@@ -194,6 +200,9 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     if (route) {
       console.log('Route received:', route);
       this.mapService.drawRoute(route.coordinates);
+
+      // keep route coords for navigation deviation checks
+      this.routeCoordinates = route.coordinates.map(([lng, lat]) => ({ lat, lng }));
       
       // Update route info
       this.routeInfo = {
@@ -368,5 +377,129 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
       // Close modal and show route
       this.closeSearchModal();
     }
+  }
+
+  /* Navigation Mode */
+  async toggleNavigation(): Promise<void> {
+    if (this.isNavigating) {
+      await this.stopNavigation();
+    } else {
+      await this.startNavigation();
+    }
+  }
+
+  private async startNavigation(): Promise<void> {
+    if (this.isNavigating) return;
+    const map = this.mapService.getMap();
+    if (!map) return;
+
+    this.isNavigating = true;
+
+    const pos = await this.locationService.getCurrentPosition();
+    if (!pos) {
+      console.error('Navigation: no position');
+      this.isNavigating = false;
+      return;
+    }
+
+    // create or update user marker
+    if (!this.userMarker) {
+      this.userMarker = L.marker([pos.latitude, pos.longitude], {
+        icon: L.icon({
+          iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+          popupAnchor: [1, -34],
+          shadowSize: [41, 41],
+        })
+      }).addTo(map);
+    } else {
+      this.userMarker.setLatLng([pos.latitude, pos.longitude]);
+    }
+
+    map.panTo([pos.latitude, pos.longitude], { animate: true });
+
+    // start watch
+    this.navigationWatchId = await this.locationService.watchPosition(
+      (p) => {
+        if (!p) return;
+        const { latitude, longitude } = p;
+        if (this.userMarker) {
+          this.userMarker.setLatLng([latitude, longitude]);
+        }
+        if (this.isNavigating) {
+          this.mapService.panToPosition(latitude, longitude);
+        }
+        if (this.routeCoordinates.length) {
+          this.checkDeviationFromRoute(latitude, longitude);
+        }
+      },
+      (err) => {
+        console.error('Navigation watch error', err);
+      }
+    );
+
+    if (!this.navigationWatchId) {
+      this.isNavigating = false;
+    }
+  }
+
+  private async stopNavigation(): Promise<void> {
+    if (!this.isNavigating) return;
+    this.isNavigating = false;
+    if (this.navigationWatchId) {
+      await this.locationService.clearWatch(this.navigationWatchId);
+      this.navigationWatchId = null;
+    }
+  }
+
+  private checkDeviationFromRoute(lat: number, lng: number): void {
+    if (!this.routeCoordinates.length) return;
+    const userPoint: LatLng = { lat, lng };
+    let minDist = Number.MAX_VALUE;
+    for (let i = 1; i < this.routeCoordinates.length; i++) {
+      const a = this.routeCoordinates[i - 1];
+      const b = this.routeCoordinates[i];
+      const dist = this.distancePointToSegment(userPoint, a, b);
+      if (dist < minDist) minDist = dist;
+    }
+    // Threshold 30m
+    if (minDist > 30) {
+      console.warn('Route deviation detected', minDist);
+    }
+  }
+
+  // Distance from point P to segment AB in meters
+  private distancePointToSegment(p: LatLng, a: LatLng, b: LatLng): number {
+    const distAB = this.calculateDistanceMeters(a, b);
+    if (distAB === 0) return this.calculateDistanceMeters(p, a);
+
+    // project point onto segment
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const lat1 = toRad(a.lat);
+    const lon1 = toRad(a.lng);
+    const lat2 = toRad(b.lat);
+    const lon2 = toRad(b.lng);
+    const latP = toRad(p.lat);
+    const lonP = toRad(p.lng);
+
+    const A = [Math.cos(lat1) * Math.cos(lon1), Math.cos(lat1) * Math.sin(lon1), Math.sin(lat1)];
+    const B = [Math.cos(lat2) * Math.cos(lon2), Math.cos(lat2) * Math.sin(lon2), Math.sin(lat2)];
+    const P = [Math.cos(latP) * Math.cos(lonP), Math.cos(latP) * Math.sin(lonP), Math.sin(latP)];
+
+    const AB = B.map((v, idx) => v - A[idx]);
+    const AP = P.map((v, idx) => v - A[idx]);
+    const ab2 = AB.reduce((s, v) => s + v * v, 0);
+    const ap_ab = AP.reduce((s, v, idx) => s + v * AB[idx], 0);
+    let t = ap_ab / ab2;
+    t = Math.max(0, Math.min(1, t));
+
+    const proj = A.map((v, idx) => v + t * AB[idx]);
+    const projLat = Math.atan2(proj[2], Math.sqrt(proj[0] * proj[0] + proj[1] * proj[1]));
+    const projLon = Math.atan2(proj[1], proj[0]);
+
+    const projPoint: LatLng = { lat: projLat * 180 / Math.PI, lng: projLon * 180 / Math.PI };
+    return this.calculateDistanceMeters(p, projPoint);
   }
 }
