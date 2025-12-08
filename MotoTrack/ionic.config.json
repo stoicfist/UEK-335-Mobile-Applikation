@@ -1,0 +1,7 @@
+{
+  "name": "MotoTrack",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular-standalone"
+}
