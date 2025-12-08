@@ -1,74 +1,169 @@
-import { Component, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
-import { IonHeader, IonToolbar, IonTitle, IonContent, IonFabButton, IonIcon } from '@ionic/angular/standalone';
-import { Geolocation } from '@capacitor/geolocation';
+import { Component, AfterViewInit, ViewChild, ElementRef, OnDestroy } from '@angular/core';
+import { 
+  IonContent, IonFabButton, IonIcon,
+  IonCard, IonItem, IonInput, IonButton, IonLabel 
+} from '@ionic/angular/standalone';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MapService } from '../services/map.service';
+import { GeocodingService } from '../services/geocoding.service';
+import { RoutingService, LatLng } from '../services/routing.service';
+import { LocationService } from '../services/location.service';
 import { addIcons } from 'ionicons';
-import { locate } from 'ionicons/icons';
+import { locate, location, flag, search, closeCircle } from 'ionicons/icons';
+
+interface RouteInfo {
+  distance: string;
+  duration: string;
+}
 
 @Component({
   selector: 'app-tab1',
   templateUrl: 'tab1.page.html',
   styleUrls: ['tab1.page.scss'],
-  imports: [IonHeader, IonToolbar, IonTitle, IonContent, IonFabButton, IonIcon],
+  imports: [
+    CommonModule,
+    FormsModule,
+    IonContent, IonFabButton, IonIcon,
+    IonCard, IonItem, IonInput, IonButton, IonLabel
+  ],
 })
-export class Tab1Page implements AfterViewInit {
+export class Tab1Page implements AfterViewInit, OnDestroy {
   @ViewChild('mapContainer', { static: false }) mapContainer!: ElementRef;
-  private currentLat: number = 47.3769;
-  private currentLon: number = 8.5472;
-
-  constructor(private mapService: MapService) {
-    addIcons({ locate });
+  
+  // Input fields
+  startInput: string = '';
+  endInput: string = '';
+  
+  // Coordinates
+  private startCoords: LatLng | null = null;
+  private endCoords: LatLng | null = null;
+  
+  // Route info
+  routeInfo: RouteInfo | null = null;
+  
+  constructor(
+    private mapService: MapService,
+    private geocodingService: GeocodingService,
+    private routingService: RoutingService,
+    private locationService: LocationService
+  ) {
+    addIcons({ locate, location, flag, search, closeCircle });
   }
 
   ngAfterViewInit(): void {
-    console.log('Tab1: ngAfterViewInit called');
-    // Warte kurz, bis das DOM wirklich ready ist
     setTimeout(() => {
-      console.log('Tab1: Starting map initialization');
       this.initializeMap();
     }, 200);
   }
 
+  ngOnDestroy(): void {
+    this.locationService.stopWatchPosition();
+  }
+
   private async initializeMap(): Promise<void> {
     try {
-      console.log('Tab1: Initializing map...');
-      // Initialisiere die Karte
       const map = this.mapService.initMap('map');
-      console.log('Tab1: Map initialized', map);
       
-      // Force invalidate size, damit die Karte richtig rendert
       setTimeout(() => {
         map.invalidateSize();
-        console.log('Tab1: Map size invalidated');
       }, 200);
 
-      // Hole aktuelle Position
-      try {
-        const coordinates = await Geolocation.getCurrentPosition();
-        this.currentLat = coordinates.coords.latitude;
-        this.currentLon = coordinates.coords.longitude;
-        console.log('Tab1: Got position', this.currentLat, this.currentLon);
-        this.mapService.setCurrentPosition(this.currentLat, this.currentLon);
-      } catch (error) {
-        console.log('Geolocation error:', error);
-        // Fallback: Zürich
-        this.mapService.setCurrentPosition(this.currentLat, this.currentLon);
+      // Start watching position
+      await this.locationService.startWatchPosition();
+      
+      // Subscribe to position updates
+      this.locationService.currentPosition$.subscribe(position => {
+        if (position) {
+          this.mapService.updateUserPosition(position.latitude, position.longitude);
+        }
+      });
+
+      // Get initial position
+      const position = await this.locationService.getCurrentPosition();
+      if (position) {
+        this.mapService.setCurrentPosition(position.latitude, position.longitude);
       }
     } catch (error) {
-      console.error('Tab1: Error initializing map:', error);
+      console.error('Error initializing map:', error);
     }
   }
 
   async goToMyLocation(): Promise<void> {
-    try {
-      const coordinates = await Geolocation.getCurrentPosition();
-      this.currentLat = coordinates.coords.latitude;
-      this.currentLon = coordinates.coords.longitude;
-      this.mapService.setCurrentPosition(this.currentLat, this.currentLon);
-    } catch (error) {
-      console.log('Geolocation error:', error);
-      // Fallback auf letzte bekannte Position
-      this.mapService.setCurrentPosition(this.currentLat, this.currentLon);
+    const position = await this.locationService.getCurrentPosition();
+    if (position) {
+      this.mapService.panToPosition(position.latitude, position.longitude);
     }
+  }
+
+  async useCurrentLocation(): Promise<void> {
+    const position = await this.locationService.getCurrentPosition();
+    if (position) {
+      this.startCoords = { lat: position.latitude, lng: position.longitude };
+      this.startInput = 'Aktueller Standort';
+      this.mapService.setStartMarker(position.latitude, position.longitude);
+      
+      // If end is set, calculate route
+      if (this.endCoords) {
+        await this.calculateRoute();
+      }
+    }
+  }
+
+  async searchStart(): Promise<void> {
+    if (!this.startInput || this.startInput === 'Aktueller Standort') return;
+    
+    const result = await this.geocodingService.geocode(this.startInput);
+    if (result) {
+      this.startCoords = { lat: result.lat, lng: result.lon };
+      this.mapService.setStartMarker(result.lat, result.lon);
+      
+      // If end is set, calculate route
+      if (this.endCoords) {
+        await this.calculateRoute();
+      }
+    }
+  }
+
+  async searchEnd(): Promise<void> {
+    if (!this.endInput) return;
+    
+    const result = await this.geocodingService.geocode(this.endInput);
+    if (result) {
+      this.endCoords = { lat: result.lat, lng: result.lon };
+      this.mapService.setEndMarker(result.lat, result.lon);
+      
+      // If start is set, calculate route
+      if (this.startCoords) {
+        await this.calculateRoute();
+      }
+    }
+  }
+
+  private async calculateRoute(): Promise<void> {
+    if (!this.startCoords || !this.endCoords) return;
+    
+    const route = await this.routingService.getRoute(this.startCoords, this.endCoords);
+    if (route) {
+      this.mapService.drawRoute(route.coordinates);
+      
+      // Update route info
+      this.routeInfo = {
+        distance: (route.distance / 1000).toFixed(1), // Convert to km
+        duration: Math.round(route.duration / 60).toString() // Convert to minutes
+      };
+      
+      // Fit map to route
+      this.mapService.fitBoundsToRoute();
+    }
+  }
+
+  clearRoute(): void {
+    this.startInput = '';
+    this.endInput = '';
+    this.startCoords = null;
+    this.endCoords = null;
+    this.routeInfo = null;
+    this.mapService.clearRoute();
   }
 }
