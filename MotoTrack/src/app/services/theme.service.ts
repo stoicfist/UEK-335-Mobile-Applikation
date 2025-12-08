@@ -44,16 +44,12 @@ export class ThemeService {
       if (this.isNative()) {
         StatusBar.setStyle({ style: Style.Light });
         StatusBar.setBackgroundColor({ color: '#000000' });
-        StatusBar.setOverlaysWebView({ overlay: false });
-        StatusBar.show();
       }
     } else {
       document.documentElement.classList.remove('ion-palette-dark');
       if (this.isNative()) {
         StatusBar.setStyle({ style: Style.Dark });
         StatusBar.setBackgroundColor({ color: '#ffffff' });
-        StatusBar.setOverlaysWebView({ overlay: false });
-        StatusBar.show();
       }
     }
   }
