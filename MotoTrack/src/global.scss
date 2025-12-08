@@ -35,3 +35,41 @@
 /* @import "@ionic/angular/css/palettes/dark.always.css"; */
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import '@ionic/angular/css/palettes/dark.system.css';
+
+/* Custom Dark Mode Styles */
+html.ion-palette-dark {
+  --ion-background-color: #000000;
+  --ion-text-color: #66ff00;
+  
+  background-color: #000000;
+  color: #66ff00;
+}
+
+html.ion-palette-dark ion-content {
+  --background: #000000;
+  background: #000000;
+  color: #66ff00;
+}
+
+html.ion-palette-dark ion-toolbar {
+  --background: #0d0d0d;
+  --color: #66ff00;
+  background: #0d0d0d;
+  color: #66ff00;
+}
+
+html.ion-palette-dark ion-label {
+  color: #66ff00;
+}
+
+html.ion-palette-dark ion-item {
+  --background: #1a1a1a;
+  --color: #66ff00;
+  background: #1a1a1a;
+  color: #66ff00;
+}
+
+html.ion-palette-dark .ion-page {
+  background: #000000;
+  color: #66ff00;
+}
