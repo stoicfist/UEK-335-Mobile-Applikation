@@ -66,4 +66,47 @@ export class LocationService {
       this.watchId = null;
     }
   }
+
+  /**
+   * Dedicated watchPosition for features like recording.
+   * Returns the watchId so callers can clear it independently.
+   */
+  async watchPosition(
+    callback: (pos: LocationPosition) => void,
+    onError?: (err: any) => void
+  ): Promise<string | null> {
+    try {
+      const id = await Geolocation.watchPosition(
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+        (position, err) => {
+          if (err) {
+            console.error('Watch position error:', err);
+            if (onError) onError(err);
+            return;
+          }
+          if (position) {
+            const locationPos: LocationPosition = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+            };
+            callback(locationPos);
+          }
+        }
+      );
+      return typeof id === 'string' ? id : null;
+    } catch (error) {
+      console.error('Error starting custom watch position:', error);
+      return null;
+    }
+  }
+
+  async clearWatch(id: string | null | undefined): Promise<void> {
+    if (!id) return;
+    try {
+      await Geolocation.clearWatch({ id });
+    } catch (error) {
+      console.error('Error clearing watch position:', error);
+    }
+  }
 }

@@ -1,18 +1,19 @@
 import { Component, AfterViewInit, ViewChild, ElementRef, OnDestroy } from '@angular/core';
 import { 
   IonContent, IonFabButton, IonIcon, IonFab,
-  IonCard, IonItem, IonInput, IonButton, IonLabel,
+  IonItem, IonInput, IonButton, IonLabel,
   IonModal, IonHeader, IonToolbar, IonTitle, IonButtons,
   IonList, IonListHeader, IonChip
 } from '@ionic/angular/standalone';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import * as L from 'leaflet';
 import { MapService } from '../services/map.service';
 import { GeocodingService } from '../services/geocoding.service';
 import { RoutingService, LatLng } from '../services/routing.service';
 import { LocationService } from '../services/location.service';
 import { addIcons } from 'ionicons';
-import { locate, location, flag, search, closeCircle, navigate, close } from 'ionicons/icons';
+import { locate, location, flag, search, closeCircle, navigate, close, radioButtonOnOutline, squareOutline } from 'ionicons/icons';
 
 interface RouteInfo {
   distance: string;
@@ -37,6 +38,15 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
   
   // Modal state
   isSearchModalOpen = false;
+
+   // Recording state
+  isRecording = false;
+  recordedPath: LatLng[] = [];
+  recordingPolyline: L.Polyline | null = null;
+  private recordingWatchId: string | null = null;
+  private recordingStartTime: number | null = null;
+  private lastRecordedPoint: LatLng | null = null;
+  private totalDistanceMeters = 0;
   
   // Input fields
   startInput: string = '';
@@ -55,7 +65,7 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     private routingService: RoutingService,
     private locationService: LocationService
   ) {
-    addIcons({ locate, location, flag, search, closeCircle, navigate, close });
+    addIcons({ locate, location, flag, search, closeCircle, navigate, close, radioButtonOnOutline, squareOutline });
   }
 
   ngAfterViewInit(): void {
@@ -207,6 +217,131 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     this.endCoords = null;
     this.routeInfo = null;
     this.mapService.clearRoute();
+  }
+
+  // Recording mode
+  async toggleRecording(): Promise<void> {
+    if (this.isRecording) {
+      await this.stopRecording();
+    } else {
+      await this.startRecording();
+    }
+  }
+
+  private async startRecording(): Promise<void> {
+    if (this.isRecording) return;
+
+    const map = this.mapService.getMap();
+    if (!map) {
+      console.error('Map not initialized');
+      return;
+    }
+
+    this.isRecording = true;
+    this.recordedPath = [];
+    this.totalDistanceMeters = 0;
+    this.recordingStartTime = Date.now();
+    this.lastRecordedPoint = null;
+
+    // Create or reset recording polyline
+    if (this.recordingPolyline) {
+      map.removeLayer(this.recordingPolyline);
+    }
+    this.recordingPolyline = this.mapService.createRecordingPolyline();
+
+    // Seed with current position if available
+    const current = await this.locationService.getCurrentPosition();
+    if (current) {
+      const seedPoint: LatLng = { lat: current.latitude, lng: current.longitude };
+      this.pushRecordingPoint(seedPoint);
+      this.mapService.updateUserPosition(seedPoint.lat, seedPoint.lng);
+      this.mapService.panToPosition(seedPoint.lat, seedPoint.lng);
+    }
+
+    // Start dedicated watch for recording
+    this.recordingWatchId = await this.locationService.watchPosition(
+      (pos) => {
+        const nextPoint: LatLng = { lat: pos.latitude, lng: pos.longitude };
+        this.pushRecordingPoint(nextPoint);
+        this.mapService.updateUserPosition(nextPoint.lat, nextPoint.lng);
+        this.mapService.panToPosition(nextPoint.lat, nextPoint.lng);
+      },
+      (err) => {
+        console.error('Recording watch error', err);
+      }
+    );
+
+    if (!this.recordingWatchId) {
+      console.error('Recording watch could not start');
+      this.isRecording = false;
+    }
+  }
+
+  private async stopRecording(): Promise<void> {
+    if (!this.isRecording) return;
+
+    this.isRecording = false;
+
+    if (this.recordingWatchId) {
+      await this.locationService.clearWatch(this.recordingWatchId);
+      this.recordingWatchId = null;
+    }
+
+    const durationMs = this.recordingStartTime ? Date.now() - this.recordingStartTime : 0;
+    this.recordingStartTime = null;
+
+    // Persist recorded route
+    this.saveRoute(durationMs);
+  }
+
+  private pushRecordingPoint(point: LatLng): void {
+    this.recordedPath.push(point);
+
+    // Distance accumulation
+    if (this.lastRecordedPoint) {
+      this.totalDistanceMeters += this.calculateDistanceMeters(this.lastRecordedPoint, point);
+    }
+    this.lastRecordedPoint = point;
+
+    // Update polyline
+    if (this.recordingPolyline) {
+      this.recordingPolyline.addLatLng([point.lat, point.lng]);
+    }
+  }
+
+  private saveRoute(durationMs: number): void {
+    if (!this.recordedPath.length) return;
+
+    const route = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? (crypto as any).randomUUID() : Math.random().toString(36).slice(2),
+      date: new Date().toISOString(),
+      points: this.recordedPath,
+      distanceMeters: this.totalDistanceMeters,
+      durationMs,
+    };
+
+    try {
+      const existingRaw = localStorage.getItem('recordedRoutes');
+      const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      existing.push(route);
+      localStorage.setItem('recordedRoutes', JSON.stringify(existing));
+      console.log('Route saved locally', route);
+    } catch (error) {
+      console.error('Failed to save route', error);
+    }
+  }
+
+  private calculateDistanceMeters(a: LatLng, b: LatLng): number {
+    const toRad = (v: number) => (v * Math.PI) / 180;
+    const R = 6371000; // meters
+    const dLat = toRad(b.lat - a.lat);
+    const dLon = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+
+    const hav = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
+    return R * c;
   }
 
   // Modal methods

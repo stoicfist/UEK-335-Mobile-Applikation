@@ -9,10 +9,19 @@
     </ion-fab-button>
   </ion-fab>
 
+  <!-- Recording FAB Button (bottom right) -->
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="recording-fab">
+    <ion-fab-button (click)="toggleRecording()" [color]="isRecording ? 'danger' : 'primary'">
+      <ion-icon [name]="isRecording ? 'square-outline' : 'radio-button-on-outline'"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
   <!-- My Location FAB Button (bottom right) -->
-  <ion-fab-button class="location-button" (click)="goToMyLocation()">
-    <ion-icon name="locate"></ion-icon>
-  </ion-fab-button>
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" class="location-fab">
+    <ion-fab-button class="location-button" (click)="goToMyLocation()">
+      <ion-icon name="locate"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
 
   <!-- Route Info Badge (if route exists) -->
   <div class="route-info-badge" *ngIf="routeInfo">

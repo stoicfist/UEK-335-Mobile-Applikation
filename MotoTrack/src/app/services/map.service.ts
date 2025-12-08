@@ -76,7 +76,6 @@ export class MapService {
       icon: blueIcon,
     })
       .addTo(this.map);
-
   }
 
   panToPosition(latitude: number, longitude: number): void {
@@ -176,6 +175,20 @@ export class MapService {
       this.map.removeLayer(this.routePolyline);
       this.routePolyline = null;
     }
+  }
+
+  createRecordingPolyline(options?: L.PolylineOptions): L.Polyline | null {
+    if (!this.map) return null;
+    const polyline = L.polyline([], {
+      color: 'red',
+      weight: 5,
+      ...options,
+    }).addTo(this.map);
+    return polyline;
+  }
+
+  addPointToPolyline(polyline: L.Polyline, latitude: number, longitude: number): void {
+    polyline.addLatLng([latitude, longitude]);
   }
 
   getMap(): L.Map | null {
