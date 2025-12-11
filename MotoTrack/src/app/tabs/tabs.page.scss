@@ -24,3 +24,12 @@ html.ion-palette-dark ion-tab-button[aria-selected='true'] {
 	background: rgba(255, 165, 0, 0.18);
 }
 
+/* Icon color: inactive gray, active = primary (blue) */
+ion-tab-button ion-icon {
+	color: var(--ion-color-medium);
+}
+
+ion-tab-button[aria-selected='true'] ion-icon {
+	color: var(--ion-color-primary);
+}
+

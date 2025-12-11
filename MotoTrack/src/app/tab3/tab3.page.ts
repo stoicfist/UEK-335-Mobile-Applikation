@@ -3,10 +3,10 @@ import { IonHeader, IonToolbar, IonTitle, IonContent, IonSelect, IonSelectOption
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TourService, Tour } from '../services/tour.service';
-import { Chart, registerables } from 'chart.js';
+import Chart from 'chart.js/auto';
 import { ThemeService } from '../services/theme.service';
 
-Chart.register(...registerables);
+// 'chart.js/auto' registers controllers/plugins automatically
 
 interface KPI {
   totalDistanceKm: number;
@@ -24,6 +24,7 @@ interface KPI {
 export class Tab3Page implements AfterViewInit, OnDestroy {
   @ViewChild('barChart') barChartRef!: ElementRef<HTMLCanvasElement>;
   @ViewChild('lineChart') lineChartRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('radarChart') radarChartRef!: ElementRef<HTMLCanvasElement>;
 
   tours: Tour[] = [];
   years: number[] = [];
@@ -33,6 +34,7 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
 
   private barChart?: Chart;
   private lineChart?: Chart;
+  private radarChart?: Chart;
 
   private themeSub: any;
 
@@ -41,19 +43,37 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
   async ngAfterViewInit(): Promise<void> {
     await this.loadTours();
     this.initYears();
-    this.computeKpis();
-    this.renderCharts();
+    this.computeKpis(this.selectedYear);
+
+    // Delay initial chart rendering slightly so the Ionic tab/page has time
+    // to attach elements to the document. This avoids Chart.js trying to
+    // measure canvases that are not yet connected and throwing ownerDocument errors.
+    setTimeout(() => {
+      try {
+        this.renderRadarChart();
+        this.renderCharts();
+      } catch (e) {
+        // Defensive: log and continue. The render methods themselves retry
+        // if the element isn't attached, so this should be rare.
+        // Keep the log concise so the dev console points to this code path.
+        // eslint-disable-next-line no-console
+        console.warn('Tab3: initial chart render failed, will retry in background', e);
+        // schedule another attempt
+        setTimeout(() => { this.renderRadarChart(); this.renderCharts(); }, 400);
+      }
+    }, 220);
 
     // react on theme changes
+    // call updateChartColors asynchronously to avoid synchronous re-render race with view init
     this.themeSub = this.themeService.darkMode$.subscribe(() => {
-      // re-render charts for theme
-      this.updateChartColors();
+      setTimeout(() => this.updateChartColors(), 0);
     });
   }
 
   ngOnDestroy(): void {
     this.barChart?.destroy();
     this.lineChart?.destroy();
+    this.radarChart?.destroy();
     if (this.themeSub && typeof this.themeSub.unsubscribe === 'function') this.themeSub.unsubscribe();
   }
 
@@ -73,14 +93,16 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
 
   onYearChanged(year: number): void {
     this.selectedYear = year;
+    this.computeKpis(this.selectedYear);
     this.updateCharts();
   }
 
-  private computeKpis(): void {
-    const totalDistance = this.tours.reduce((s, t) => s + (t.distance || 0), 0);
-    const totalSeconds = this.tours.reduce((s, t) => s + (t.duration || 0), 0);
-    const tourCount = this.tours.length;
-    const maxAvg = this.tours.reduce((m, t) => Math.max(m, t.avg_speed || 0), 0);
+  private computeKpis(year?: number): void {
+    const filtered = this.filterToursByYear(year);
+    const totalDistance = filtered.reduce((s: number, t: Tour) => s + (t.distance || 0), 0);
+    const totalSeconds = filtered.reduce((s: number, t: Tour) => s + (t.duration || 0), 0);
+    const tourCount = filtered.length;
+    const maxAvg = filtered.reduce((m: number, t: Tour) => Math.max(m, t.avg_speed || 0), 0);
 
     this.kpi = {
       totalDistanceKm: parseFloat(totalDistance.toFixed(2)),
@@ -88,6 +110,14 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
       tourCount,
       maxAvgSpeed: parseFloat(maxAvg.toFixed(2)),
     };
+  }
+
+  private filterToursByYear(year?: number): Tour[] {
+    if (!year) return this.tours;
+    return this.tours.filter((t: Tour) => {
+      const y = t.year || new Date(t.created_at || '').getFullYear();
+      return y === year;
+    });
   }
 
   private aggregateDistanceByMonth(year: number): number[] {
@@ -100,9 +130,11 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
     return months.map(v => parseFloat(v.toFixed(2)));
   }
 
-  private speedsSeries(): {labels: string[], data: number[]} {
+  private speedsSeries(year?: number): {labels: string[], data: number[]} {
+    // Use only tours for the given year (if provided)
+    const list = year ? this.filterToursByYear(year) : this.tours;
     // Sort chronologically by created_at ascending
-    const sorted = [...this.tours].sort((a,b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
+    const sorted = [...list].sort((a,b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
     const labels = sorted.map(t => t.created_at ? new Date(t.created_at).toLocaleDateString() : '');
     const data = sorted.map(t => parseFloat((t.avg_speed || 0).toFixed(2)));
     return { labels, data };
@@ -113,8 +145,125 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
     this.renderLineChart();
   }
 
+  /** Render or update the radar (spider) chart placed at the top of the page */
+  private renderRadarChart(): void {
+    // ensure canvas is available and attached to document; if not, retry shortly
+    if (!this.radarChartRef || !this.radarChartRef.nativeElement || !document.contains(this.radarChartRef.nativeElement)) {
+      // retry shortly — avoids Chart.js errors when element not yet in DOM
+      setTimeout(() => this.renderRadarChart(), 100);
+      return;
+    }
+    const ctx = this.radarChartRef.nativeElement.getContext('2d');
+    if (!ctx) return;
+
+    const labels = ['Total Distance', 'Total Trip Time', 'Average Speed', 'Max Avg Speed', 'Tour Count', 'Avg Tour Distance'];
+
+    // compute raw values based on currently selected year
+    const filtered = this.filterToursByYear(this.selectedYear);
+    const totalDistance = filtered.reduce((s: number, t: Tour) => s + (t.distance || 0), 0);
+    const totalSeconds = filtered.reduce((s: number, t: Tour) => s + (t.duration || 0), 0);
+    const totalHours = totalSeconds / 3600;
+    const avgSpeed = filtered.length ? (filtered.reduce((s: number, t: Tour) => s + (t.avg_speed || 0), 0) / filtered.length) : 0;
+    const maxAvg = filtered.reduce((m: number, t: Tour) => Math.max(m, t.avg_speed || 0), 0);
+    const tourCount = filtered.length;
+    const avgDistance = tourCount ? totalDistance / tourCount : 0;
+
+    const rawValues = [totalDistance, parseFloat(totalHours.toFixed(2)), parseFloat(avgSpeed.toFixed(2)), parseFloat(maxAvg.toFixed(2)), tourCount, parseFloat(avgDistance.toFixed(2))];
+
+    // normalization constants
+    const maxExpected = {
+      distance: 500,
+      time: 20,
+      speed: 120,
+      tourCount: 20,
+      avgDistance: 100
+    };
+
+    const normalized = [
+      Math.min(100, (rawValues[0] / maxExpected.distance) * 100),
+      Math.min(100, (rawValues[1] / maxExpected.time) * 100),
+      Math.min(100, (rawValues[2] / maxExpected.speed) * 100),
+      Math.min(100, (rawValues[3] / maxExpected.speed) * 100),
+      Math.min(100, (rawValues[4] / maxExpected.tourCount) * 100),
+      Math.min(100, (rawValues[5] / maxExpected.avgDistance) * 100),
+    ];
+
+  const isDark = this.themeService.isDarkMode();
+  // pick theme-aware colors; use primary-ish blue for light, light/greenish for dark for visibility
+  const border = this.getColor('rgba(54,162,235,0.95)');
+  const bg = this.getColor('rgba(54,162,235,0.12)');
+  const textColor = isDark ? '#e6ffed' : '#222';
+
+
+    // tooltip callbacks close over rawValues so they can show real numbers
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 700 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx: any) {
+              const i = ctx.dataIndex;
+              const raw = rawValues[i];
+              switch (i) {
+                case 0: return `${raw} km`;
+                case 1: return `${raw} h`;
+                case 2: return `${raw} km/h`;
+                case 3: return `${raw} km/h`;
+                case 4: return `${raw}`;
+                case 5: return `${raw} km`;
+                default: return `${raw}`;
+              }
+            }
+          }
+        }
+      },
+      scales: {
+        r: {
+          // hide numeric tick labels in the center (100,80,...) — unnecessary UI element
+          ticks: { display: false, color: textColor, stepSize: 20 },
+          pointLabels: { color: textColor, font: { size: 12 } },
+          grid: { color: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' },
+          angleLines: { color: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' },
+          suggestedMin: 0,
+          suggestedMax: 100
+        }
+      }
+    };
+
+    if (this.radarChart) {
+      (this.radarChart.data.datasets[0].data as number[]) = normalized;
+      this.radarChart.update();
+      return;
+    }
+
+    this.radarChart = new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [{
+          data: normalized,
+          backgroundColor: bg,
+          borderColor: border,
+          borderWidth: 2,
+          pointBackgroundColor: border,
+          pointRadius: 3,
+          fill: true
+        }]
+      },
+      options
+    });
+  }
+
   private renderBarChart(): void {
-    const ctx = this.barChartRef?.nativeElement.getContext('2d');
+    // ensure canvas exists and is attached
+    if (!this.barChartRef || !this.barChartRef.nativeElement || !document.contains(this.barChartRef.nativeElement)) {
+      setTimeout(() => this.renderBarChart(), 100);
+      return;
+    }
+    const ctx = this.barChartRef.nativeElement.getContext('2d');
     if (!ctx) return;
     const months = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
     const data = this.aggregateDistanceByMonth(this.selectedYear);
@@ -130,9 +279,14 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
   }
 
   private renderLineChart(): void {
-    const ctx = this.lineChartRef?.nativeElement.getContext('2d');
+    // ensure canvas exists and attached to DOM
+    if (!this.lineChartRef || !this.lineChartRef.nativeElement || !document.contains(this.lineChartRef.nativeElement)) {
+      setTimeout(() => this.renderLineChart(), 100);
+      return;
+    }
+    const ctx = this.lineChartRef.nativeElement.getContext('2d');
     if (!ctx) return;
-    const series = this.speedsSeries();
+    const series = this.speedsSeries(this.selectedYear);
 
     this.lineChart = new Chart(ctx, {
       type: 'line',
@@ -152,11 +306,13 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
     }
     // update line (no filtering)
     if (this.lineChart) {
-      const series = this.speedsSeries();
+      const series = this.speedsSeries(this.selectedYear);
       this.lineChart.data.labels = series.labels;
       (this.lineChart.data.datasets[0].data as number[]) = series.data;
       this.lineChart.update();
     }
+    // update radar
+    this.renderRadarChart();
   }
 
   private baseOptions(titleText: string, showTooltipByIndex = false) {
@@ -198,6 +354,8 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
     // Recreate charts to apply theme colors simply
     this.barChart?.destroy();
     this.lineChart?.destroy();
+    this.radarChart?.destroy();
+    this.renderRadarChart();
     this.renderCharts();
   }
 

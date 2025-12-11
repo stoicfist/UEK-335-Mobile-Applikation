@@ -1,7 +1,7 @@
 import { Component, EnvironmentInjector, inject } from '@angular/core';
 import { IonTabs, IonTabBar, IonTabButton, IonIcon, IonLabel } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { mapOutline, ellipse, square, settings, layersOutline } from 'ionicons/icons';
+import { mapOutline, ellipse, square, settings, layersOutline, statsChartOutline } from 'ionicons/icons';
 
 @Component({
   selector: 'app-tabs',
@@ -15,6 +15,6 @@ export class TabsPage {
   constructor() {
     // Register common icons used by the tab-bar. Also include layersOutline so the
     // Touren tab icon is available immediately when the tab-bar renders.
-    addIcons({ mapOutline, ellipse, square, settings, layersOutline });
+  addIcons({ mapOutline, ellipse, square, settings, layersOutline, statsChartOutline });
   }
 }
