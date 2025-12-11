@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
 import { supabase } from './supabase.client';
+import { OfflineStorageService } from './offline-storage.service';
+import { NetworkService } from './network.service';
 
 export interface RoutePoint {
   lat: number;
@@ -21,6 +23,7 @@ export interface Tour {
 @Injectable({ providedIn: 'root' })
 export class TourService {
   private table = 'tours';
+  constructor(private offlineStorage: OfflineStorageService, private networkService: NetworkService) {}
 
   /**
    * Speichert eine abgeschlossene Tour in der Datenbank
@@ -59,19 +62,45 @@ export class TourService {
 
       console.log('Saving tour:', tour);
 
-      // Insert in Supabase
+      // If offline, store locally for later sync
+      if (!this.networkService.isOnline()) {
+        await this.offlineStorage.addPendingTour(tour);
+        console.log('Network offline, saved tour to pending storage');
+        return tour;
+      }
+
+      // Attempt insert in Supabase
       const { data, error } = await supabase
         .from(this.table)
         .insert(tour)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // on failure, persist locally and return tour object
+        await this.offlineStorage.addPendingTour(tour);
+        console.warn('Supabase insert failed, saved tour to pending storage', error);
+        return tour;
+      }
 
       console.log('Tour saved successfully:', data);
       return data as Tour;
     } catch (err) {
       console.error('saveCompletedTour error:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Insert a full Tour object directly (used by sync flows)
+   */
+  async saveTourObject(tour: Tour): Promise<Tour | null> {
+    try {
+      const { data, error } = await supabase.from(this.table).insert(tour).select().single();
+      if (error) throw error;
+      return data as Tour;
+    } catch (err) {
+      console.error('saveTourObject error:', err);
       return null;
     }
   }
