@@ -25,7 +25,7 @@ import { interval, Subscription } from 'rxjs';
 import { TourService, Tour } from '../services/tour.service';
 import { ThemeService } from '../services/theme.service';
 import { addIcons } from 'ionicons';
-import { trash, mapOutline } from 'ionicons/icons';
+import { trash, mapOutline, layersOutline, speedometerOutline } from 'ionicons/icons';
 
 interface MonthOption {
   value: number;
@@ -91,7 +91,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     private router: Router,
     private themeService: ThemeService
   ) {
-    addIcons({ trash, mapOutline });
+    addIcons({layersOutline,mapOutline,speedometerOutline,trash});
   }
 
   ngOnInit(): void {

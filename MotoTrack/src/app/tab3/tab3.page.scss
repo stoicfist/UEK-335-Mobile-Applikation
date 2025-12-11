@@ -1,0 +1,37 @@
+/* Stats Dashboard styles */
+
+.kpi-value {
+	font-size: 20px;
+	font-weight: 700;
+	padding: 16px;
+}
+
+.chart-card {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	/* add some inner spacing so headings don't collide with charts on small screens */
+	padding: 8px 12px 16px;
+}
+
+.chart-card canvas {
+	flex: 1 1 auto;
+	width: 100% !important;
+	height: 100% !important;
+}
+
+/* Headings inside chart cards: give them breathing room */
+.chart-card h3 {
+	margin: 8px 0 10px;
+	font-size: 1.1rem;
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+/* Ensure there is a bit more vertical spacing between the two chart columns on very small screens */
+@media (max-width: 480px) {
+  ion-row > ion-col {
+    margin-bottom: 8px;
+  }
+}
+
