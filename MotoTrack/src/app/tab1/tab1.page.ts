@@ -9,7 +9,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import * as L from 'leaflet';
 import { MapService } from '../services/map.service';
-import { GeocodingService } from '../services/geocoding.service';
+import { GeocodingService, NominatimResult } from '../services/geocoding.service';
 import { RoutingService, LatLng } from '../services/routing.service';
 import { LocationService } from '../services/location.service';
 import { TourService } from '../services/tour.service';
@@ -62,6 +62,11 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
   // Input fields
   startInput: string = '';
   endInput: string = '';
+  // Autocomplete suggestions
+  startSuggestions: NominatimResult[] = [];
+  endSuggestions: NominatimResult[] = [];
+  private startDebounceTimer: any = null;
+  private endDebounceTimer: any = null;
   
   // Coordinates
   private startCoords: LatLng | null = null;
@@ -230,11 +235,87 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
 
   // Input change handlers (for potential autocomplete in future)
   onStartInput(): void {
-    // Could add autocomplete suggestions here later
+    this.onSearchInputChanged('start', this.startInput);
   }
 
   onEndInput(): void {
-    // Could add autocomplete suggestions here later
+    this.onSearchInputChanged('end', this.endInput);
+  }
+
+  // Generic input change handler with debounce and min-length
+  onSearchInputChanged(field: 'start' | 'end', query: string): void {
+    // normalize
+    const q = (query || '').trim();
+
+    // Clear if too short
+    if (q.length < 2) {
+      if (field === 'start') this.startSuggestions = [];
+      else this.endSuggestions = [];
+      // cancel any pending timer
+      if (field === 'start' && this.startDebounceTimer) {
+        clearTimeout(this.startDebounceTimer);
+        this.startDebounceTimer = null;
+      }
+      if (field === 'end' && this.endDebounceTimer) {
+        clearTimeout(this.endDebounceTimer);
+        this.endDebounceTimer = null;
+      }
+      return;
+    }
+
+    // Debounce
+    if (field === 'start') {
+      if (this.startDebounceTimer) clearTimeout(this.startDebounceTimer);
+      this.startDebounceTimer = setTimeout(async () => {
+        const res = await this.fetchAutocompleteSuggestions(q);
+        this.startSuggestions = res;
+      }, 200);
+    } else {
+      if (this.endDebounceTimer) clearTimeout(this.endDebounceTimer);
+      this.endDebounceTimer = setTimeout(async () => {
+        const res = await this.fetchAutocompleteSuggestions(q);
+        this.endSuggestions = res;
+      }, 200);
+    }
+  }
+
+  // Wrapper that calls the geocoding service
+  private async fetchAutocompleteSuggestions(query: string): Promise<NominatimResult[]> {
+    try {
+      return await this.geocodingService.fetchAutocompleteSuggestions(query, 5);
+    } catch (err) {
+      console.error('fetchAutocompleteSuggestions error', err);
+      return [];
+    }
+  }
+
+  // When user taps a suggestion
+  async selectSuggestion(field: 'start' | 'end', suggestion: NominatimResult): Promise<void> {
+    if (!suggestion) return;
+
+    if (field === 'start') {
+      this.startInput = suggestion.display_name;
+      this.startCoords = { lat: parseFloat(suggestion.lat), lng: parseFloat(suggestion.lon) };
+      this.mapService.setStartMarker(this.startCoords.lat, this.startCoords.lng);
+      this.startSuggestions = [];
+    } else {
+      this.endInput = suggestion.display_name;
+      this.endCoords = { lat: parseFloat(suggestion.lat), lng: parseFloat(suggestion.lon) };
+      this.mapService.setEndMarker(this.endCoords.lat, this.endCoords.lng);
+      this.endSuggestions = [];
+    }
+
+    // If both set, calculate route
+    if (this.startCoords && this.endCoords) {
+      await this.calculateRoute();
+      // close modal shortly after selection
+      setTimeout(() => this.closeSearchModal(), 300);
+    }
+  }
+
+  clearSuggestions(): void {
+    this.startSuggestions = [];
+    this.endSuggestions = [];
   }
 
   private async calculateRoute(): Promise<void> {

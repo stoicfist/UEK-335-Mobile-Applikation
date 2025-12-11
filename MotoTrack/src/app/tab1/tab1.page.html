@@ -73,6 +73,13 @@
           </ion-button>
         </ion-item>
 
+        <!-- Start suggestions -->
+  <ion-list *ngIf="startSuggestions.length" class="suggestions-list">
+          <ion-item button *ngFor="let s of startSuggestions" (click)="selectSuggestion('start', s)">
+            <ion-label>{{ s.display_name }}</ion-label>
+          </ion-item>
+        </ion-list>
+
         <!-- Destination Input -->
         <ion-item>
           <ion-icon name="flag" slot="start" color="danger"></ion-icon>
@@ -86,6 +93,13 @@
             <ion-icon name="search" color="primary"></ion-icon>
           </ion-button>
         </ion-item>
+
+        <!-- End suggestions -->
+  <ion-list *ngIf="endSuggestions.length" class="suggestions-list">
+          <ion-item button *ngFor="let s of endSuggestions" (click)="selectSuggestion('end', s)">
+            <ion-label>{{ s.display_name }}</ion-label>
+          </ion-item>
+        </ion-list>
 
         <!-- Route Info Display -->
         <ion-item *ngIf="routeInfo" lines="none">

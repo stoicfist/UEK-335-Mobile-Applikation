@@ -76,3 +76,24 @@ ion-fab {
     font-size: 28px;
   }
 }
+
+/* Autocomplete suggestion list styling */
+.suggestions-list {
+  margin: 4px 12px 12px 12px;
+  border-radius: 8px;
+  background: var(--ion-background-color, #fff);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  max-height: 220px;
+  overflow: auto;
+  z-index: 1200; /* above map */
+}
+
+.suggestions-list ion-item {
+  --inner-padding-end: 12px;
+  --inner-padding-start: 12px;
+  font-size: 14px;
+}
+
+.suggestions-list ion-item ion-label {
+  white-space: normal;
+}
