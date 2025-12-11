@@ -1,0 +1,19 @@
+/* network badge styles */
+.network-badge {
+	position: fixed;
+	top: 8px;
+	right: 12px;
+	z-index: 9999;
+	padding: 6px 10px;
+	border-radius: 14px;
+	font-size: 13px;
+	color: #fff;
+	box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+	opacity: 0.95;
+}
+.network-badge.online { background: #0ea44b; }
+.network-badge.offline { background: #d33; }
+
+/* toast classes (optional) */
+.network-toast-online { --background: #0ea44b; color: #fff; }
+.network-toast-offline { --background: #d33; color: #fff; }

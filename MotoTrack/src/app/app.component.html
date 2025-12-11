@@ -1,3 +1,8 @@
 <ion-app>
+  <!-- network status badge (global) -->
+  <div class="network-badge" [class.online]="(networkService.isOnline$ | async)" [class.offline]="!(networkService.isOnline$ | async)">
+    {{ (networkService.isOnline$ | async) ? 'Online – Sync aktiv' : 'Offline – Tracking lokal gespeichert' }}
+  </div>
+
   <ion-router-outlet></ion-router-outlet>
 </ion-app>
