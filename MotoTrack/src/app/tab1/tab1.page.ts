@@ -12,6 +12,7 @@ import { MapService } from '../services/map.service';
 import { GeocodingService } from '../services/geocoding.service';
 import { RoutingService, LatLng } from '../services/routing.service';
 import { LocationService } from '../services/location.service';
+import { TourService } from '../services/tour.service';
 import { addIcons } from 'ionicons';
 import { locate, location, flag, search, closeCircle, navigate, close, radioButtonOnOutline, squareOutline, navigateOutline, stopCircleOutline } from 'ionicons/icons';
 
@@ -69,7 +70,8 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     private mapService: MapService,
     private geocodingService: GeocodingService,
     private routingService: RoutingService,
-    private locationService: LocationService
+    private locationService: LocationService,
+    private tourService: TourService
   ) {
     addIcons({ locate, location, flag, search, closeCircle, navigate, close, radioButtonOnOutline, squareOutline, navigateOutline, stopCircleOutline });
   }
@@ -301,6 +303,9 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
 
     // Persist recorded route
     this.saveRoute(durationMs);
+
+    // Optional: also push to Supabase if keys are configured
+    this.saveRouteToSupabase(durationMs);
   }
 
   private pushRecordingPoint(point: LatLng): void {
@@ -351,6 +356,32 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     const hav = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
     return R * c;
+  }
+
+  private async saveRouteToSupabase(durationMs: number): Promise<void> {
+    if (!this.recordedPath.length) return;
+
+    const routePoints = this.recordedPath.map(p => ({
+      lat: p.lat,
+      lng: p.lng,
+      timestamp: Date.now(),
+    }));
+
+    const distance = this.totalDistanceMeters;
+    const durationHours = durationMs > 0 ? durationMs / 3_600_000 : 0;
+    const averageSpeed = durationHours > 0 ? (distance / 1000) / durationHours : 0;
+
+    try {
+      await this.tourService.saveTour({
+        duration: durationMs,
+        distance,
+        average_speed: averageSpeed,
+        route_points: routePoints,
+      });
+      console.log('Route saved to Supabase');
+    } catch (err) {
+      console.error('Supabase save error', err);
+    }
   }
 
   // Modal methods
