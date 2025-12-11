@@ -65,6 +65,22 @@ Die App läuft als **PWA** sowie als **Android-App**.
 ```
 
 ---
+## Entwicklung: OSRM / CORS Hinweis
+
+Beim Entwickeln im Browser kann die OSRM-API CORS-Header vermissen, wodurch Route-Anfragen vom Browser blockiert werden (Fehler "Access-Control-Allow-Origin missing").
+
+Lösung (lokal): nutze einen Dev-Proxy. Ich habe eine `proxy.conf.json` im Projekt hinzugefügt. So startest du den Dev-Server mit Proxy:
+
+```bash
+# Angular dev server mit Proxy
+npm run start:proxy
+
+# Oder mit Ionic CLI (weiter Arguments werden an ng weitergereicht)
+npm run ionic:serve:proxy
+```
+
+Der Proxy forwarded `/osrm/*` an `https://router.project-osrm.org/*` und beseitigt das CORS-Problem für lokale Entwicklung. In der App wird automatisch `/osrm/...` verwendet, wenn die Seite auf `localhost` läuft.
+
 ## 🗄 Supabase Datenmodell
 
 ### Tabelle: `tours`
