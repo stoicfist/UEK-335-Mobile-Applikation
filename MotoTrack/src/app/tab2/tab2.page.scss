@@ -1,8 +1,44 @@
 .year-selector {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px 6px;
+  background: var(--ion-background-color);
+  border-bottom: 1px solid var(--ion-color-light);
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  :host-context(html.ion-palette-dark) & {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  ion-button {
+    --padding-top: 4px;
+    --padding-bottom: 4px;
+    --padding-start: 10px;
+    --padding-end: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.month-selector {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 6px;
+  padding: 10px 8px;
   background: var(--ion-background-color);
   border-bottom: 1px solid var(--ion-color-light);
 
@@ -10,28 +46,71 @@
     border-bottom-color: rgba(255, 255, 255, 0.1);
   }
 
-  ion-button {
-    --padding-top: 6px;
-    --padding-bottom: 6px;
-    --padding-start: 12px;
-    --padding-end: 12px;
-    font-size: 12px;
+  /* Smooth scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  
+  /* Hide scrollbar */
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  .month-button {
+    --padding-top: 4px;
+    --padding-bottom: 4px;
+    --padding-start: 10px;
+    --padding-end: 10px;
+    font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
+.month-segment-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  ion-segment {
+    width: 100%;
   }
 }
 
 .month-segment {
   display: flex;
-  overflow-x: auto;
-  padding: 12px 8px;
+  overflow-x: visible;
+  overflow-y: hidden;
+  padding: 8px 4px;
   background: var(--ion-background-color);
+  width: max-content;
   
   ion-segment-button {
     flex-shrink: 0;
     min-width: auto;
-    padding: 8px 12px;
-    font-size: 12px;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  
+  /* Hide scrollbar on iOS/mobile */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 

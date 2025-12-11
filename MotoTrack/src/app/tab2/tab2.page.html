@@ -28,15 +28,18 @@
     </ion-button>
   </div>
 
-  <!-- Month Filter Segment -->
-  <ion-segment 
-    [(ngModel)]="selectedMonth" 
-    (ionChange)="onMonthChange()"
-    class="month-segment">
-    <ion-segment-button *ngFor="let month of months" [value]="month.value">
-      <ion-label>{{ month.label }}</ion-label>
-    </ion-segment-button>
-  </ion-segment>
+  <!-- Month Filter Buttons (Scrollable) -->
+  <div class="month-selector">
+    <ion-button 
+      *ngFor="let month of months" 
+      [fill]="selectedMonth === month.value ? 'solid' : 'outline'"
+      [color]="selectedMonth === month.value ? 'primary' : 'medium'"
+      (click)="onMonthChange(month.value)"
+      size="small"
+      class="month-button">
+      {{ month.label }}
+    </ion-button>
+  </div>
 
   <!-- Tour List -->
   <div class="tour-list">

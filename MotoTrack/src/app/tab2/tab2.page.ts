@@ -1,15 +1,11 @@
 import { Component, OnInit, AfterViewInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   IonContent,
   IonHeader,
   IonTitle,
   IonToolbar,
-  IonSegment,
-  IonSegmentButton,
-  IonLabel,
   IonIcon,
   IonCard,
   IonRefresher,
@@ -34,14 +30,10 @@ interface MonthOption {
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     IonHeader,
     IonTitle,
     IonToolbar,
     IonContent,
-    IonSegment,
-    IonSegmentButton,
-    IonLabel,
     IonIcon,
     IonCard,
     IonRefresher,
@@ -161,7 +153,10 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     }, 100);
   }
 
-  onMonthChange(): void {
+  onMonthChange(month?: number): void {
+    if (month !== undefined) {
+      this.selectedMonth = month;
+    }
     this.filterTours();
   }
 
