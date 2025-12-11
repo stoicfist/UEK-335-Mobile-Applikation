@@ -1,77 +1,131 @@
-<ion-header [translucent]="true">
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button default-href="/tabs/tab2"></ion-back-button>
+      <ion-back-button defaultHref="/tabs/tab2"></ion-back-button>
     </ion-buttons>
     <ion-title>Route Details</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content [fullscreen]="true">
-  <!-- Full Map -->
-  <div id="detail-map" class="detail-map"></div>
+  <div *ngIf="isLoading" class="loading-container">
+    <ion-spinner name="crescent" color="primary"></ion-spinner>
+  </div>
 
-  <!-- Statistics Card -->
-  <ion-card class="stats-card" *ngIf="tour">
-    <ion-card-header>
-      <ion-card-title>Fahrtstatistiken</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-      <div class="stat-row">
-        <div class="stat-item">
-          <span class="stat-label">Distanz</span>
-          <span class="stat-value">{{ tour.distance.toFixed(2) }} km</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Dauer</span>
-          <span class="stat-value">{{ getTourDuration(tour) }}</span>
-        </div>
-      </div>
+  <div *ngIf="!isLoading && tour">
+    <!-- Map Container -->
+    <div id="map" class="map-container"></div>
 
-      <div class="stat-row">
-        <div class="stat-item">
-          <span class="stat-label">Durchschn. Geschw.</span>
-          <span class="stat-value">{{ tour.average_speed.toFixed(1) }} km/h</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Datum</span>
-          <span class="stat-value">{{ getFormattedDate(tour.created_at) }}</span>
-        </div>
-      </div>
+    <!-- Statistics Card -->
+    <ion-card class="statistics-card">
+      <ion-card-header>
+        <ion-card-title>Statistiken</ion-card-title>
+      </ion-card-header>
 
-      <div class="stat-row">
-        <div class="stat-item">
-          <span class="stat-label">Start</span>
-          <span class="stat-value">{{ getStartTime(tour) }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Ende</span>
-          <span class="stat-value">{{ getEndTime(tour) }}</span>
-        </div>
-      </div>
-    </ion-card-content>
-  </ion-card>
+      <ion-card-content>
+        <ion-grid fixed="true">
+          <!-- Distance & Duration Row -->
+          <ion-row class="stat-row">
+            <ion-col size="6" class="stat-col">
+              <div class="stat-item">
+                <div class="stat-value">{{ tour.distance | number: '1.2-2' }}</div>
+                <div class="stat-label">km</div>
+              </div>
+            </ion-col>
+            <ion-col size="6" class="stat-col">
+              <div class="stat-item">
+                <div class="stat-value">{{ getTourDurationMinutes(tour) }}</div>
+                <div class="stat-label">min</div>
+              </div>
+            </ion-col>
+          </ion-row>
 
-  <!-- Route Points Table (if available) -->
-  <ion-card *ngIf="tour && tour.route_points && tour.route_points.length > 0" class="points-card">
-    <ion-card-header>
-      <ion-card-title>Streckendetails ({{ tour!.route_points!.length }} Punkte)</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-      <div class="points-list">
-        <div *ngFor="let point of tour!.route_points! | slice: 0:10; let idx = index" class="point-item">
-          <div class="point-index">{{ idx + 1 }}</div>
-          <div class="point-coords">
-            <span>{{ point.lat.toFixed(6) }}, {{ point.lng.toFixed(6) }}</span>
+          <!-- Speed Row -->
+          <ion-row class="stat-row">
+            <ion-col size="12">
+              <div class="stat-item">
+                <div class="stat-value">{{ tour.average_speed | number: '1.1-1' }}</div>
+                <div class="stat-label">km/h Durchschnitt</div>
+              </div>
+            </ion-col>
+          </ion-row>
+
+          <!-- Time Range Row -->
+          <ion-row class="stat-row">
+            <ion-col size="12">
+              <div class="stat-item">
+                <div class="stat-time-range">
+                  {{ getStartTime(tour) }} – {{ getEndTime(tour) }}
+                </div>
+                <div class="stat-label">Startzeit – Endzeit</div>
+              </div>
+            </ion-col>
+          </ion-row>
+
+          <!-- Date Row -->
+          <ion-row class="stat-row">
+            <ion-col size="12">
+              <div class="stat-item">
+                <div class="stat-date">{{ getFormattedDate(tour.created_at) }}</div>
+                <div class="stat-label">Datum</div>
+              </div>
+            </ion-col>
+          </ion-row>
+        </ion-grid>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Route Points Table (first 10) -->
+    <ion-card class="route-points-card" *ngIf="tour.route_points && tour.route_points.length > 0">
+      <ion-card-header>
+        <ion-card-title>Routenpunkte (erste 10)</ion-card-title>
+      </ion-card-header>
+
+      <ion-card-content>
+        <div class="points-table">
+          <div class="table-header">
+            <div class="col-index">#</div>
+            <div class="col-coords">Koordinaten</div>
+            <div class="col-time">Zeit</div>
           </div>
-          <div class="point-time">{{ getPointTime(point.timestamp) }}</div>
+          <div
+            class="table-row"
+            *ngFor="let point of tour.route_points | slice: 0:10; let i = index"
+          >
+            <div class="col-index">{{ i + 1 }}</div>
+            <div class="col-coords">
+              {{ point.lat | number: '1.5-5' }},<br />
+              {{ point.lng | number: '1.5-5' }}
+            </div>
+            <div class="col-time">
+              {{ point.timestamp | date: 'HH:mm:ss' }}
+            </div>
+          </div>
         </div>
-        <div *ngIf="tour!.route_points!.length > 10" class="point-more">
-          ... und {{ tour!.route_points!.length - 10 }} weitere Punkte
-        </div>
-      </div>
-    </ion-card-content>
-  </ion-card>
+      </ion-card-content>
+    </ion-card>
 
-  <div style="height: 20px;"></div>
+    <!-- Spacer for Footer -->
+    <div class="spacer"></div>
+  </div>
+
+  <div *ngIf="!isLoading && !tour" class="error-container">
+    <ion-text color="danger">
+      <h2>Route nicht gefunden</h2>
+    </ion-text>
+  </div>
 </ion-content>
+
+<!-- Footer with Action Buttons -->
+<ion-footer>
+  <ion-toolbar>
+    <ion-button expand="full" (click)="onExport()" *ngIf="tour">
+      <ion-icon slot="start" name="download"></ion-icon>
+      Exportieren
+    </ion-button>
+    <ion-button expand="full" color="danger" (click)="onDelete()" *ngIf="tour">
+      <ion-icon slot="start" name="trash"></ion-icon>
+      Löschen
+    </ion-button>
+  </ion-toolbar>
+</ion-footer>

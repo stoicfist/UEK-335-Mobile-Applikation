@@ -6,7 +6,7 @@ import * as L from 'leaflet';
 })
 export class MapService {
   private map: L.Map | null = null;
-  private currentPositionMarker: L.Marker | null = null;
+  private currentPositionCircle: L.Circle | null = null;
   private startMarker: L.Marker | null = null;
   private endMarker: L.Marker | null = null;
   private routePolyline: L.Polyline | null = null;
@@ -29,23 +29,18 @@ export class MapService {
   setCurrentPosition(latitude: number, longitude: number): void {
     if (!this.map) return;
 
-    // Entferne alten Marker falls vorhanden
-    if (this.currentPositionMarker) {
-      this.map.removeLayer(this.currentPositionMarker);
+    // Entferne alten Circle falls vorhanden
+    if (this.currentPositionCircle) {
+      this.map.removeLayer(this.currentPositionCircle);
     }
 
-    // Erstelle neuen Position Marker (blau)
-    const blueIcon = L.icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41],
-    });
-
-    this.currentPositionMarker = L.marker([latitude, longitude], {
-      icon: blueIcon,
+    // Erstelle neuen Position Circle (blau mit Radius = Accuracy)
+    this.currentPositionCircle = L.circle([latitude, longitude], {
+      color: '#0066cc',
+      fillColor: '#0066cc',
+      fillOpacity: 0.5,
+      radius: 25, // meters
+      weight: 2,
     })
       .addTo(this.map)
       .bindPopup(`Aktuelle Position<br>Lat: ${latitude.toFixed(4)}<br>Lon: ${longitude.toFixed(4)}`);
@@ -57,25 +52,13 @@ export class MapService {
   updateUserPosition(latitude: number, longitude: number): void {
     if (!this.map) return;
 
-    // Entferne alten Marker falls vorhanden
-    if (this.currentPositionMarker) {
-      this.map.removeLayer(this.currentPositionMarker);
+    if (!this.currentPositionCircle) {
+      // Circle noch nicht erstellt, erstelle ihn jetzt
+      this.setCurrentPosition(latitude, longitude);
+    } else {
+      // Update bestehenden Circle
+      this.currentPositionCircle.setLatLng([latitude, longitude]);
     }
-
-    // Erstelle neuen Position Marker (blau)
-    const blueIcon = L.icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41],
-    });
-
-    this.currentPositionMarker = L.marker([latitude, longitude], {
-      icon: blueIcon,
-    })
-      .addTo(this.map);
   }
 
   panToPosition(latitude: number, longitude: number): void {

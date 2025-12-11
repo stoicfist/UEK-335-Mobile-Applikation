@@ -40,9 +40,9 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
   // Modal state
   isSearchModalOpen = false;
 
-   // Recording state
+  // Recording/Navigation state
   isRecording = false;
-  recordedPath: LatLng[] = [];
+  recordedTrack: LatLng[] = [];
   recordingPolyline: L.Polyline | null = null;
   private recordingWatchId: string | null = null;
   private recordingStartTime: number | null = null;
@@ -53,7 +53,11 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
   isNavigating = false;
   navigationWatchId: string | null = null;
   userMarker: L.Marker | null = null;
-  routeCoordinates: LatLng[] = [];
+
+  // Route state
+  fullRoute: LatLng[] = [];
+  remainingRoute: LatLng[] = [];
+  remainingRoutePolyline: L.Polyline | null = null;
   
   // Input fields
   startInput: string = '';
@@ -94,44 +98,84 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
         map.invalidateSize();
       }, 200);
 
-      // Start watching position
-      await this.locationService.startWatchPosition();
-      
-      // Subscribe to position updates
-      this.locationService.currentPosition$.subscribe(position => {
-        if (position) {
-          this.mapService.updateUserPosition(position.latitude, position.longitude);
-        }
-      });
+      // Wait a bit for Capacitor plugins to be ready
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Get initial position
-      const position = await this.locationService.getCurrentPosition();
-      if (position) {
-        this.mapService.setCurrentPosition(position.latitude, position.longitude);
+      // Request location permission at startup
+      await this.requestLocationPermission();
+
+      // Start watching position with error handling
+      try {
+        await this.locationService.startWatchPosition();
+        
+        // Subscribe to position updates
+        this.locationService.currentPosition$.subscribe(position => {
+          if (position) {
+            this.mapService.updateUserPosition(position.latitude, position.longitude);
+          }
+        });
+
+        // Get initial position
+        const position = await this.locationService.getCurrentPosition();
+        if (position) {
+          this.mapService.setCurrentPosition(position.latitude, position.longitude);
+        }
+      } catch (locationError) {
+        console.warn('Location service not available:', locationError);
+        // Continue without location - map will still work
       }
     } catch (error) {
       console.error('Error initializing map:', error);
     }
   }
 
+  private async requestLocationPermission(): Promise<void> {
+    try {
+      const { Geolocation } = await import('@capacitor/geolocation');
+      const permission = await Geolocation.checkPermissions();
+      
+      if (permission.location === 'denied') {
+        // Permission was previously denied, request it again
+        const result = await Geolocation.requestPermissions();
+        if (result.location !== 'granted') {
+          console.warn('Location permission denied by user');
+        }
+      }
+    } catch (error) {
+      console.warn('Could not check location permission:', error);
+    }
+  }
+
   async goToMyLocation(): Promise<void> {
-    const position = await this.locationService.getCurrentPosition();
-    if (position) {
-      this.mapService.panToPosition(position.latitude, position.longitude);
+    try {
+      await this.requestLocationPermission();
+      const position = await this.locationService.getCurrentPosition();
+      if (position) {
+        this.mapService.panToPosition(position.latitude, position.longitude);
+      } else {
+        console.warn('Could not get location');
+      }
+    } catch (error) {
+      console.warn('Could not get location:', error);
     }
   }
 
   async useCurrentLocation(): Promise<void> {
-    const position = await this.locationService.getCurrentPosition();
-    if (position) {
-      this.startCoords = { lat: position.latitude, lng: position.longitude };
-      this.startInput = 'Aktueller Standort';
-      this.mapService.setStartMarker(position.latitude, position.longitude);
+    try {
+      await this.requestLocationPermission();
+      const position = await this.locationService.getCurrentPosition();
+      if (position) {
+        this.startCoords = { lat: position.latitude, lng: position.longitude };
+        this.startInput = 'Aktueller Standort';
+        this.mapService.setStartMarker(position.latitude, position.longitude);
       
-      // If end is set, calculate route
-      if (this.endCoords) {
-        await this.calculateRoute();
+        // If end is set, calculate route
+        if (this.endCoords) {
+          await this.calculateRoute();
+        }
       }
+    } catch (error) {
+      console.warn('Could not use current location:', error);
     }
   }
 
@@ -201,10 +245,10 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     const route = await this.routingService.getRoute(this.startCoords, this.endCoords);
     if (route) {
       console.log('Route received:', route);
-      this.mapService.drawRoute(route.coordinates);
-
-      // keep route coords for navigation deviation checks
-      this.routeCoordinates = route.coordinates.map(([lng, lat]) => ({ lat, lng }));
+      this.fullRoute = route.coordinates.map(([lng, lat]) => ({ lat, lng }));
+      this.remainingRoute = [...this.fullRoute];
+      this.recordedTrack = [];
+      console.log('Route points:', this.remainingRoute.length);
       
       // Update route info
       this.routeInfo = {
@@ -213,9 +257,33 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
       };
       
       console.log('Route info:', this.routeInfo);
-      
-      // Fit map to route
-      this.mapService.fitBoundsToRoute();
+
+      const map = this.mapService.getMap();
+      if (map) {
+        if (this.remainingRoutePolyline) {
+          map.removeLayer(this.remainingRoutePolyline);
+        }
+
+        const remainingLatLngs = this.remainingRoute.map(c => [c.lat, c.lng] as L.LatLngExpression);
+        this.remainingRoutePolyline = L.polyline(remainingLatLngs, {
+          color: '#0066cc',
+          weight: 4,
+          opacity: 0.8,
+        }).addTo(map);
+        this.remainingRoutePolyline.bringToFront();
+        console.log('Remaining polyline points:', this.remainingRoutePolyline.getLatLngs().length);
+
+        if (this.recordingPolyline) {
+          this.recordingPolyline.setLatLngs([]);
+        } else {
+          this.recordingPolyline = this.mapService.createRecordingPolyline();
+        }
+
+        if (this.remainingRoute.length) {
+          const bounds = L.latLngBounds(this.remainingRoute.map(c => [c.lat, c.lng] as L.LatLngExpression));
+          map.fitBounds(bounds, { padding: [50, 50] });
+        }
+      }
     } else {
       console.error('No route received');
     }
@@ -227,6 +295,22 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     this.startCoords = null;
     this.endCoords = null;
     this.routeInfo = null;
+    this.remainingRoute = [];
+    this.fullRoute = [];
+    this.recordedTrack = [];
+    
+    // Remove remaining route polyline if exists
+    const map = this.mapService.getMap();
+    if (map && this.remainingRoutePolyline) {
+      map.removeLayer(this.remainingRoutePolyline);
+      this.remainingRoutePolyline = null;
+    }
+    
+    if (map && this.recordingPolyline) {
+      map.removeLayer(this.recordingPolyline);
+      this.recordingPolyline = null;
+    }
+    
     this.mapService.clearRoute();
   }
 
@@ -249,33 +333,45 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     }
 
     this.isRecording = true;
-    this.recordedPath = [];
+    this.recordedTrack = [];
     this.totalDistanceMeters = 0;
     this.recordingStartTime = Date.now();
     this.lastRecordedPoint = null;
 
-    // Create or reset recording polyline
+    // Prepare recording polyline (red line grows with GPS points)
     if (this.recordingPolyline) {
-      map.removeLayer(this.recordingPolyline);
+      this.recordingPolyline.setLatLngs([]);
+    } else {
+      this.recordingPolyline = this.mapService.createRecordingPolyline();
     }
-    this.recordingPolyline = this.mapService.createRecordingPolyline();
+
+    // Initialize remaining route polyline from the full OSRM route (blue line shrinks)
+    if (this.fullRoute.length > 0) {
+      const routeLatLngs = this.fullRoute.map(c => [c.lat, c.lng] as L.LatLngExpression);
+      if (this.remainingRoutePolyline) {
+        this.remainingRoutePolyline.setLatLngs(routeLatLngs);
+      } else {
+        this.remainingRoutePolyline = L.polyline(routeLatLngs, {
+          color: '#0066cc',
+          weight: 4,
+          opacity: 0.8,
+        }).addTo(map);
+      }
+      this.remainingRoutePolyline.bringToFront();
+    }
 
     // Seed with current position if available
     const current = await this.locationService.getCurrentPosition();
     if (current) {
       const seedPoint: LatLng = { lat: current.latitude, lng: current.longitude };
-      this.pushRecordingPoint(seedPoint);
-      this.mapService.updateUserPosition(seedPoint.lat, seedPoint.lng);
-      this.mapService.panToPosition(seedPoint.lat, seedPoint.lng);
+      this.onGpsUpdate(seedPoint);
     }
 
     // Start dedicated watch for recording
     this.recordingWatchId = await this.locationService.watchPosition(
       (pos) => {
         const nextPoint: LatLng = { lat: pos.latitude, lng: pos.longitude };
-        this.pushRecordingPoint(nextPoint);
-        this.mapService.updateUserPosition(nextPoint.lat, nextPoint.lng);
-        this.mapService.panToPosition(nextPoint.lat, nextPoint.lng);
+        this.onGpsUpdate(nextPoint);
       },
       (err) => {
         console.error('Recording watch error', err);
@@ -301,6 +397,11 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     const durationMs = this.recordingStartTime ? Date.now() - this.recordingStartTime : 0;
     this.recordingStartTime = null;
 
+    // Keep remaining route polyline layer but clear points
+    if (this.remainingRoutePolyline) {
+      this.remainingRoutePolyline.setLatLngs([]);
+    }
+
     // Persist recorded route
     this.saveRoute(durationMs);
 
@@ -308,28 +409,45 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     this.saveRouteToSupabase(durationMs);
   }
 
-  private pushRecordingPoint(point: LatLng): void {
-    this.recordedPath.push(point);
-
-    // Distance accumulation
+  private onGpsUpdate(point: LatLng): void {
+    // A) Red line grows (recorded track)
+    this.recordedTrack.push(point);
     if (this.lastRecordedPoint) {
       this.totalDistanceMeters += this.calculateDistanceMeters(this.lastRecordedPoint, point);
     }
     this.lastRecordedPoint = point;
 
-    // Update polyline
     if (this.recordingPolyline) {
       this.recordingPolyline.addLatLng([point.lat, point.lng]);
     }
+
+    // B) Find closest route index
+    if (this.fullRoute.length) {
+      const closestIndex = this.findClosestRouteIndex(point, this.fullRoute);
+      this.remainingRoute = this.fullRoute.slice(closestIndex);
+
+      // C/D) Update blue remaining route polyline (keep layer, just update points)
+      if (this.remainingRoutePolyline) {
+        const remainingCoords = this.remainingRoute.map(c => [c.lat, c.lng] as L.LatLngExpression);
+        this.remainingRoutePolyline.setLatLngs(remainingCoords);
+      }
+    }
+
+    // E) Move marker & follow map
+    if (this.userMarker) {
+      this.userMarker.setLatLng([point.lat, point.lng]);
+    }
+    this.mapService.updateUserPosition(point.lat, point.lng);
+    this.mapService.panToPosition(point.lat, point.lng);
   }
 
   private saveRoute(durationMs: number): void {
-    if (!this.recordedPath.length) return;
+    if (!this.recordedTrack.length) return;
 
     const route = {
       id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? (crypto as any).randomUUID() : Math.random().toString(36).slice(2),
       date: new Date().toISOString(),
-      points: this.recordedPath,
+      points: this.recordedTrack,
       distanceMeters: this.totalDistanceMeters,
       durationMs,
     };
@@ -358,10 +476,37 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     return R * c;
   }
 
-  private async saveRouteToSupabase(durationMs: number): Promise<void> {
-    if (!this.recordedPath.length) return;
+  private findClosestRouteIndex(userPos: LatLng, routeCoords: LatLng[]): number {
+    let closestIndex = 0;
+    let minDistance = Infinity;
 
-    const routePoints = this.recordedPath.map(p => ({
+    for (let i = 0; i < routeCoords.length; i++) {
+      const dist = this.calculateDistanceMeters(userPos, routeCoords[i]);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+
+    return closestIndex;
+  }
+
+  private updateRemainingRoute(currentPos: LatLng): void {
+    if (!this.fullRoute.length || !this.remainingRoutePolyline) {
+      return;
+    }
+
+    const closestIndex = this.findClosestRouteIndex(currentPos, this.fullRoute);
+    this.remainingRoute = this.fullRoute.slice(closestIndex);
+
+    const remainingCoords = this.remainingRoute.map(c => [c.lat, c.lng] as L.LatLngExpression);
+    this.remainingRoutePolyline.setLatLngs(remainingCoords);
+  }
+
+  private async saveRouteToSupabase(durationMs: number): Promise<void> {
+    if (!this.recordedTrack.length) return;
+
+    const routePoints = this.recordedTrack.map((p: LatLng) => ({
       lat: p.lat,
       lng: p.lng,
       timestamp: Date.now(),
@@ -424,7 +569,37 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     const map = this.mapService.getMap();
     if (!map) return;
 
+    if (!this.fullRoute.length) {
+      console.warn('Navigation: no planned route');
+      return;
+    }
+
+    // Request location permission before navigation
+    await this.requestLocationPermission();
+
     this.isNavigating = true;
+
+    // Reset tracks/polyline state
+    this.recordedTrack = [];
+    this.remainingRoute = [...this.fullRoute];
+    this.lastRecordedPoint = null;
+    this.totalDistanceMeters = 0;
+    if (this.recordingPolyline) {
+      this.recordingPolyline.setLatLngs([]);
+    } else {
+      this.recordingPolyline = this.mapService.createRecordingPolyline();
+    }
+    const remainingLatLngs = this.remainingRoute.map(c => [c.lat, c.lng] as L.LatLngExpression);
+    if (this.remainingRoutePolyline) {
+      this.remainingRoutePolyline.setLatLngs(remainingLatLngs);
+    } else {
+      this.remainingRoutePolyline = L.polyline(remainingLatLngs, {
+        color: '#0066cc',
+        weight: 4,
+        opacity: 0.8,
+      }).addTo(map);
+    }
+    this.remainingRoutePolyline.bringToFront();
 
     const pos = await this.locationService.getCurrentPosition();
     if (!pos) {
@@ -451,18 +626,16 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
 
     map.panTo([pos.latitude, pos.longitude], { animate: true });
 
+    // Seed with current position
+    this.onGpsUpdate({ lat: pos.latitude, lng: pos.longitude });
+
     // start watch
     this.navigationWatchId = await this.locationService.watchPosition(
       (p) => {
         if (!p) return;
         const { latitude, longitude } = p;
-        if (this.userMarker) {
-          this.userMarker.setLatLng([latitude, longitude]);
-        }
-        if (this.isNavigating) {
-          this.mapService.panToPosition(latitude, longitude);
-        }
-        if (this.routeCoordinates.length) {
+        this.onGpsUpdate({ lat: latitude, lng: longitude });
+        if (this.fullRoute.length) {
           this.checkDeviationFromRoute(latitude, longitude);
         }
       },
@@ -486,12 +659,12 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
   }
 
   private checkDeviationFromRoute(lat: number, lng: number): void {
-    if (!this.routeCoordinates.length) return;
+    if (!this.fullRoute.length) return;
     const userPoint: LatLng = { lat, lng };
     let minDist = Number.MAX_VALUE;
-    for (let i = 1; i < this.routeCoordinates.length; i++) {
-      const a = this.routeCoordinates[i - 1];
-      const b = this.routeCoordinates[i];
+    for (let i = 1; i < this.fullRoute.length; i++) {
+      const a = this.fullRoute[i - 1];
+      const b = this.fullRoute[i];
       const dist = this.distancePointToSegment(userPoint, a, b);
       if (dist < minDist) minDist = dist;
     }

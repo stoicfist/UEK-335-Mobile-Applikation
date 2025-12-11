@@ -1,196 +1,195 @@
-import { Component, OnInit, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
-  IonBackButton,
-  IonButton,
-  IonButtons,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
   IonCard,
-  IonCardContent,
   IonCardHeader,
   IonCardTitle,
-  IonContent,
-  IonHeader,
-  IonTitle,
-  IonToolbar,
+  IonCardContent,
+  IonIcon,
+  IonButton,
+  IonFooter,
+  IonGrid,
+  IonRow,
+  IonCol,
+  IonText,
+  IonSpinner,
+  IonButtons,
+  IonBackButton,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
+import { addIcons } from 'ionicons';
+import { arrowBack, download, trash } from 'ionicons/icons';
 import * as L from 'leaflet';
 import { TourService, Tour } from '../../services/tour.service';
 import { ThemeService } from '../../services/theme.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-tour-detail',
   standalone: true,
   imports: [
     CommonModule,
-    IonBackButton,
-    IonButtons,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
     IonCard,
-    IonCardContent,
     IonCardHeader,
     IonCardTitle,
-    IonContent,
-    IonHeader,
-    IonTitle,
-    IonToolbar,
+    IonCardContent,
+    IonIcon,
+    IonButton,
+    IonFooter,
+    IonGrid,
+    IonRow,
+    IonCol,
+    IonText,
+    IonSpinner,
+    IonButtons,
+    IonBackButton,
   ],
   templateUrl: './tour-detail.page.html',
   styleUrls: ['./tour-detail.page.scss'],
 })
-export class TourDetailPage implements OnInit, AfterViewInit {
+export class TourDetailPage implements OnInit, OnDestroy {
   tour: Tour | null = null;
-  private detailMap: L.Map | null = null;
-  isDarkMode = false;
+  isLoading = true;
+  isDark = false;
+  private map: L.Map | null = null;
+  private darkModeSubscription: Subscription | null = null;
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private tourService: TourService,
-    private themeService: ThemeService
-  ) {}
+    private themeService: ThemeService,
+    private alertController: AlertController,
+    private toastController: ToastController
+  ) {
+    addIcons({ arrowBack, download, trash });
+  }
 
   ngOnInit(): void {
-    this.themeService.darkMode$.subscribe((isDark: boolean) => {
-      this.isDarkMode = isDark;
+    this.darkModeSubscription = this.themeService.darkMode$.subscribe((dark) => {
+      this.isDark = dark;
     });
-
-    // Get tour ID from route params
-    const tourId = this.route.snapshot.paramMap.get('id');
-    if (tourId) {
-      this.loadTour(tourId);
-    }
+    this.loadTour();
   }
 
-  ngAfterViewInit(): void {
-    setTimeout(() => {
-      if (this.tour) {
-        this.initializeDetailMap();
+  private loadTour(): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) {
+      this.isLoading = false;
+      this.showToast('Route nicht gefunden', 'danger');
+      return;
+    }
+
+    this.tourService.getTourById(id).then((tour) => {
+      this.tour = tour;
+      this.isLoading = false;
+      if (tour) {
+        setTimeout(() => this.initializeMap(), 100);
       }
-    }, 100);
+    });
   }
 
-  async loadTour(tourId: string): Promise<void> {
-    try {
-      this.tour = await this.tourService.getTourById(tourId);
-    } catch (err) {
-      console.error('Error loading tour:', err);
-    }
-  }
-
-  initializeDetailMap(): void {
-    if (this.detailMap) {
-      this.detailMap.remove();
-    }
-
+  private initializeMap(): void {
     if (!this.tour || !this.tour.route_points || this.tour.route_points.length === 0) {
       return;
     }
 
-    // Initialize map
-    this.detailMap = L.map('detail-map', {
-      zoom: 12,
+    const mapContainer = document.getElementById('map');
+    if (!mapContainer) return;
+
+    if (this.map) {
+      this.map.remove();
+    }
+
+    this.map = L.map('map', {
       zoomControl: true,
-      attributionControl: false,
-    });
+      attributionControl: true,
+      dragging: true,
+      touchZoom: true,
+      doubleClickZoom: true,
+      scrollWheelZoom: true,
+    }).setView([47.5, 8.2], 10);
 
-    // Add tile layer
-    const tileUrl = this.isDarkMode
-      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(this.map);
 
-    L.tileLayer(tileUrl, {
-      attribution: '',
-    }).addTo(this.detailMap);
+    const routeLatLngs = this.tour!.route_points!.map((p) => [p.lat, p.lng] as L.LatLngExpression);
+    if (routeLatLngs.length > 0) {
+      const polyline = L.polyline(routeLatLngs, {
+        color: '#0066cc',
+        weight: 4,
+        opacity: 0.8,
+        smoothFactor: 1.0,
+      }).addTo(this.map);
 
-    // Draw route
-    const routeCoordinates = this.tour.route_points.map((p) => [p.lat, p.lng] as L.LatLngTuple);
-
-    // Draw polyline
-    L.polyline(routeCoordinates, {
-      color: '#ff0000',
-      weight: 3,
-      opacity: 0.8,
-    }).addTo(this.detailMap!);
-
-    // Add start marker (green)
-    L.circleMarker([routeCoordinates[0][0], routeCoordinates[0][1]], {
-      radius: 8,
-      fillColor: '#00aa00',
-      color: '#fff',
-      weight: 2,
-      opacity: 1,
-      fillOpacity: 0.8,
-    })
-      .bindPopup('Start')
-      .addTo(this.detailMap);
-
-    // Add end marker (red)
-    L.circleMarker(
-      [
-        routeCoordinates[routeCoordinates.length - 1][0],
-        routeCoordinates[routeCoordinates.length - 1][1],
-      ],
-      {
+      const startPoint = this.tour!.route_points![0];
+      L.circleMarker([startPoint.lat, startPoint.lng], {
+        color: '#4CAF50',
         radius: 8,
-        fillColor: '#ff0000',
-        color: '#fff',
-        weight: 2,
+        weight: 3,
         opacity: 1,
-        fillOpacity: 0.8,
-      }
-    )
-      .bindPopup('Ende')
-      .addTo(this.detailMap);
+        fillOpacity: 0.9,
+      })
+        .addTo(this.map)
+        .bindPopup('Start', { autoClose: false });
 
-    // Fit bounds
-    const bounds = L.latLngBounds(routeCoordinates as L.LatLngTuple[]);
-    this.detailMap!.fitBounds(bounds, { padding: [50, 50] });
+      const endPoint = this.tour!.route_points![this.tour!.route_points!.length - 1];
+      L.circleMarker([endPoint.lat, endPoint.lng], {
+        color: '#f44336',
+        radius: 8,
+        weight: 3,
+        opacity: 1,
+        fillOpacity: 0.9,
+      })
+        .addTo(this.map)
+        .bindPopup('Ende', { autoClose: false });
+
+      this.map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+    }
   }
 
-  getTourDuration(tour?: Tour): string {
-    if (!tour) return '';
-    const totalMinutes = Math.floor(tour.duration / 60000);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
+  getTourDurationMinutes(tour: Tour | null): number {
+    if (!tour) return 0;
+    return Math.round(tour.duration / 60);
   }
 
-  getStartTime(tour?: Tour): string {
-    if (!tour) return '';
-    if (!tour.route_points || tour.route_points.length === 0) {
-      return new Date(tour.created_at!).toLocaleTimeString('de-CH', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+  getStartTime(tour: Tour | null): string {
+    if (!tour || !tour.route_points || tour.route_points.length === 0) {
+      return '–';
     }
-    return new Date(tour.route_points[0].timestamp).toLocaleTimeString('de-CH', {
+    const timestamp = tour.route_points[0].timestamp;
+    return new Date(timestamp).toLocaleTimeString('de-CH', {
       hour: '2-digit',
       minute: '2-digit',
     });
   }
 
-  getEndTime(tour?: Tour): string {
-    if (!tour) return '';
-    if (!tour.route_points || tour.route_points.length === 0) {
-      const endDate = new Date(new Date(tour.created_at!).getTime() + tour.duration);
-      return endDate.toLocaleTimeString('de-CH', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+  getEndTime(tour: Tour | null): string {
+    if (!tour || !tour.route_points || tour.route_points.length === 0) {
+      return '–';
     }
-    const lastPoint = tour.route_points[tour.route_points.length - 1];
-    return new Date(lastPoint.timestamp).toLocaleTimeString('de-CH', {
+    const timestamp = tour.route_points[tour.route_points.length - 1].timestamp;
+    return new Date(timestamp).toLocaleTimeString('de-CH', {
       hour: '2-digit',
       minute: '2-digit',
     });
   }
 
-  getFormattedDate(createdAt?: string): string {
-    if (!createdAt) return '';
-    const date = new Date(createdAt);
+  getFormattedDate(dateString: string | undefined): string {
+    if (!dateString) return '–';
+    const date = new Date(dateString);
     return date.toLocaleDateString('de-CH', {
       weekday: 'long',
       year: 'numeric',
@@ -199,11 +198,79 @@ export class TourDetailPage implements OnInit, AfterViewInit {
     });
   }
 
-  getPointTime(timestamp: number): string {
-    return new Date(timestamp).toLocaleTimeString('de-CH', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
+  async onExport(): Promise<void> {
+    if (!this.tour) return;
+
+    try {
+      const tourData = JSON.stringify(this.tour, null, 2);
+      const blob = new Blob([tourData], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `tour-${this.tour.id}-${Date.now()}.json`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      await this.showToast('Route exportiert', 'success');
+    } catch (error) {
+      console.error('Export error:', error);
+      await this.showToast('Fehler beim Exportieren', 'danger');
+    }
+  }
+
+  async onDelete(): Promise<void> {
+    if (!this.tour) return;
+
+    const alert = await this.alertController.create({
+      header: 'Route löschen?',
+      message: `Möchtest du die Route vom ${this.getFormattedDate(this.tour.created_at)} wirklich löschen?`,
+      buttons: [
+        {
+          text: 'Abbrechen',
+          role: 'cancel',
+        },
+        {
+          text: 'Löschen',
+          role: 'destructive',
+          handler: async () => {
+            await this.deleteTour();
+          },
+        },
+      ],
     });
+
+    await alert.present();
+  }
+
+  private async deleteTour(): Promise<void> {
+    if (!this.tour || !this.tour.id) return;
+
+    const success = await this.tourService.deleteTour(this.tour.id);
+
+    if (success) {
+      await this.showToast('Route gelöscht', 'success');
+      this.router.navigate(['/tabs/tab2']);
+    } else {
+      await this.showToast('Fehler beim Löschen', 'danger');
+    }
+  }
+
+  private async showToast(message: string, color: 'success' | 'danger' = 'success'): Promise<void> {
+    const toast = await this.toastController.create({
+      message,
+      duration: 2000,
+      position: 'bottom',
+      color,
+    });
+    await toast.present();
+  }
+
+  ngOnDestroy(): void {
+    if (this.map) {
+      this.map.remove();
+    }
+    if (this.darkModeSubscription) {
+      this.darkModeSubscription.unsubscribe();
+    }
   }
 }
