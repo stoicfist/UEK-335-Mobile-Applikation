@@ -1,0 +1,176 @@
+.year-selector {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--ion-background-color);
+  border-bottom: 1px solid var(--ion-color-light);
+
+  :host-context(html.ion-palette-dark) & {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  ion-button {
+    --padding-top: 6px;
+    --padding-bottom: 6px;
+    --padding-start: 12px;
+    --padding-end: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+}
+
+.month-segment {
+  display: flex;
+  overflow-x: auto;
+  padding: 12px 8px;
+  background: var(--ion-background-color);
+  
+  ion-segment-button {
+    flex-shrink: 0;
+    min-width: auto;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}
+
+.tour-list {
+  padding: 12px;
+  min-height: 100%;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: var(--ion-color-medium);
+
+  ion-icon {
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  p {
+    margin: 0;
+    font-size: 14px;
+  }
+}
+
+.tour-card {
+  margin: 8px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  :host-context(html.ion-palette-dark) & {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .tour-card-content {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .map-thumbnail {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f5f5f5;
+
+    :host-context(html.ion-palette-dark) & {
+      background: #333;
+    }
+
+    .map-container {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  .tour-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 0;
+  }
+
+  .tour-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+
+    .distance-duration {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+
+      .value {
+        color: var(--ion-color-primary);
+      }
+
+      .unit {
+        font-size: 11px;
+        color: var(--ion-color-medium);
+      }
+
+      .separator {
+        color: var(--ion-color-medium);
+        margin: 0 2px;
+      }
+    }
+
+    .speed {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--ion-color-success);
+
+      ion-icon {
+        font-size: 14px;
+      }
+    }
+  }
+
+  .tour-times {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--ion-color-dark);
+    margin-bottom: 4px;
+
+    :host-context(html.ion-palette-dark) & {
+      color: var(--ion-color-light);
+    }
+
+    .time {
+      font-weight: 500;
+    }
+
+    .separator {
+      color: var(--ion-color-medium);
+    }
+  }
+
+  .tour-date {
+    font-size: 11px;
+    color: var(--ion-color-medium);
+  }
+}
+
+ion-item-options {
+  ion-item-option {
+    padding: 0 16px;
+  }
+}

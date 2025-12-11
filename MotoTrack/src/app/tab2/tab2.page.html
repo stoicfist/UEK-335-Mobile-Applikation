@@ -1,17 +1,94 @@
 <ion-header [translucent]="true">
   <ion-toolbar>
-    <ion-title>
-      Tab 2
-    </ion-title>
+    <ion-title>📍 Meine Routen</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content [fullscreen]="true">
   <ion-header collapse="condense">
     <ion-toolbar>
-      <ion-title size="large">Tab 2</ion-title>
+      <ion-title size="large">📍 Meine Routen</ion-title>
     </ion-toolbar>
   </ion-header>
 
-  <app-explore-container name="Tab 2 page"></app-explore-container>
+  <!-- Refresher -->
+  <ion-refresher slot="fixed" (ionRefresh)="onRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Year Selection -->
+  <div class="year-selector">
+    <ion-button 
+      *ngFor="let year of availableYears" 
+      [fill]="selectedYear === year ? 'solid' : 'outline'"
+      [color]="selectedYear === year ? 'primary' : 'medium'"
+      (click)="onYearChange(year)"
+      size="small">
+      {{ year }}
+    </ion-button>
+  </div>
+
+  <!-- Month Filter Segment -->
+  <ion-segment 
+    [(ngModel)]="selectedMonth" 
+    (ionChange)="onMonthChange()"
+    class="month-segment">
+    <ion-segment-button *ngFor="let month of months" [value]="month.value">
+      <ion-label>{{ month.label }}</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+
+  <!-- Tour List -->
+  <div class="tour-list">
+    <!-- Empty State -->
+    <div *ngIf="filteredTours.length === 0" class="empty-state">
+      <ion-icon name="map-outline" size="large"></ion-icon>
+      <p>Keine Routen vorhanden</p>
+    </div>
+
+    <!-- Tour Cards -->
+    <ion-card *ngFor="let tour of filteredTours" (click)="goToDetail(tour.id!)" class="tour-card">
+      <div class="tour-card-content">
+        <!-- Mini Map -->
+        <div class="map-thumbnail">
+          <div [id]="'map-' + tour.id" class="map-container"></div>
+        </div>
+
+        <!-- Tour Info -->
+        <div class="tour-info">
+          <div class="tour-header">
+            <div class="distance-duration">
+              <span class="value">{{ tour.distance.toFixed(1) }}</span>
+              <span class="unit">km</span>
+              <span class="separator">•</span>
+              <span class="value">{{ getTourDurationMinutes(tour) }}</span>
+              <span class="unit">min</span>
+            </div>
+            <div class="speed">
+              <ion-icon name="speedometer-outline"></ion-icon>
+              {{ tour.average_speed.toFixed(1) }} km/h
+            </div>
+          </div>
+
+          <div class="tour-times">
+            <span class="time">{{ getStartTime(tour) }}</span>
+            <span class="separator">–</span>
+            <span class="time">{{ getEndTime(tour) }}</span>
+          </div>
+
+          <div class="tour-date">
+            {{ getFormattedDate(tour.created_at!) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Swipe Delete -->
+      <ion-item-options side="end">
+        <ion-item-option color="danger" (click)="deleteTour(tour.id!, $event)">
+          <ion-icon name="trash"></ion-icon>
+          Löschen
+        </ion-item-option>
+      </ion-item-options>
+    </ion-card>
+  </div>
 </ion-content>
