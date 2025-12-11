@@ -260,29 +260,54 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
 
       const map = this.mapService.getMap();
       if (map) {
+        // Entferne alte Polyline falls vorhanden
         if (this.remainingRoutePolyline) {
           map.removeLayer(this.remainingRoutePolyline);
+          this.remainingRoutePolyline = null;
         }
 
+        // Erstelle neue blaue Polyline für remaining route
         const remainingLatLngs = this.remainingRoute.map(c => [c.lat, c.lng] as L.LatLngExpression);
+        console.log('Creating polyline with', remainingLatLngs.length, 'points');
+        
         this.remainingRoutePolyline = L.polyline(remainingLatLngs, {
           color: '#0066cc',
           weight: 4,
           opacity: 0.8,
-        }).addTo(map);
+          interactive: true,
+          dashArray: undefined,
+          lineCap: 'round',
+          lineJoin: 'round',
+        });
+        
+        // Add to map DANN bringToFront
+        this.remainingRoutePolyline.addTo(map);
         this.remainingRoutePolyline.bringToFront();
+        
         console.log('Remaining polyline points:', this.remainingRoutePolyline.getLatLngs().length);
+        console.log('Polyline color:', this.remainingRoutePolyline.options.color);
 
+        // Erstelle oder leere recording polyline
         if (this.recordingPolyline) {
           this.recordingPolyline.setLatLngs([]);
         } else {
           this.recordingPolyline = this.mapService.createRecordingPolyline();
         }
 
+        // Fit bounds zur Route
         if (this.remainingRoute.length) {
           const bounds = L.latLngBounds(this.remainingRoute.map(c => [c.lat, c.lng] as L.LatLngExpression));
+          console.log('Bounds:', bounds.toBBoxString());
           map.fitBounds(bounds, { padding: [50, 50] });
+          
+          // Extra setTimeout um sicherzustellen dass die Map vollständig gerendert ist
+          setTimeout(() => {
+            this.remainingRoutePolyline?.bringToFront();
+            console.log('Called bringToFront() again after fitBounds');
+          }, 100);
         }
+      } else {
+        console.error('Map not found in calculateRoute');
       }
     } else {
       console.error('No route received');
@@ -394,19 +419,22 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
       this.recordingWatchId = null;
     }
 
-    const durationMs = this.recordingStartTime ? Date.now() - this.recordingStartTime : 0;
+    const startTime = this.recordingStartTime; // Speichere den Startzeitstempel BEVOR du ihn auf null setzt
+    const durationSecs = startTime ? (Date.now() - startTime) / 1000 : 0;
     this.recordingStartTime = null;
+
+    // Speichere Tour nur wenn wirklich eine Route aufgezeichnet wurde
+    if (this.recordedTrack.length > 1 && durationSecs > 1) {
+      console.log('Speichere abgeschlossene Recording-Tour mit startTime:', startTime);
+      await this.saveCompletedTour(durationSecs, startTime);
+    } else {
+      console.log('Zu kurze oder leere Recording-Route. Nicht gespeichert.');
+    }
 
     // Keep remaining route polyline layer but clear points
     if (this.remainingRoutePolyline) {
       this.remainingRoutePolyline.setLatLngs([]);
     }
-
-    // Persist recorded route
-    this.saveRoute(durationMs);
-
-    // Optional: also push to Supabase if keys are configured
-    this.saveRouteToSupabase(durationMs);
   }
 
   private onGpsUpdate(point: LatLng): void {
@@ -433,12 +461,12 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
       }
     }
 
-    // E) Move marker & follow map
+    // E) Move marker (aber nicht automatisch zoomen - User soll frei zoomen können)
     if (this.userMarker) {
       this.userMarker.setLatLng([point.lat, point.lng]);
     }
     this.mapService.updateUserPosition(point.lat, point.lng);
-    this.mapService.panToPosition(point.lat, point.lng);
+    // Kein automatisches panToPosition() hier - nur im Navigation Mode oder "My Location" Button!
   }
 
   private saveRoute(durationMs: number): void {
@@ -463,6 +491,52 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Speichert eine abgeschlossene Tour in Supabase
+   * Wird von stopRecording() und stopNavigation() aufgerufen
+   */
+  private async saveCompletedTour(durationSecs: number, recordingStartTime: number | null = null): Promise<void> {
+    if (this.recordedTrack.length < 2) {
+      console.log('Zu wenige Trackingpunkte zum Speichern');
+      return;
+    }
+
+    // Berechne Distanz in km
+    const distanceKm = this.totalDistanceMeters / 1000;
+
+    // Berechne Durchschnittsgeschwindigkeit (km/h)
+    const avgSpeedKmh = durationSecs > 0 ? (distanceKm / (durationSecs / 3600)) : 0;
+
+    console.log('Speichere Tour zu Supabase:', {
+      distance: distanceKm,
+      duration: durationSecs,
+      avg_speed: avgSpeedKmh,
+      points: this.recordedTrack.length,
+      startTime: recordingStartTime,
+    });
+
+    try {
+      const result = await this.tourService.saveCompletedTour(
+        distanceKm,
+        durationSecs,
+        this.recordedTrack,
+        recordingStartTime || Date.now()
+      );
+
+      if (result) {
+        console.log('Tour erfolgreich gespeichert:', result);
+        // Optional: Toast/Notification anzeigen
+      } else {
+        console.error('Fehler beim Speichern der Tour');
+      }
+    } catch (err) {
+      console.error('Fehler beim Speichern zu Supabase:', err);
+    }
+  }
+
+  /**
+   * Berechnet Distanz zwischen zwei Punkten in Metern (Haversine)
+   */
   private calculateDistanceMeters(a: LatLng, b: LatLng): number {
     const toRad = (v: number) => (v * Math.PI) / 180;
     const R = 6371000; // meters
@@ -476,6 +550,9 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     return R * c;
   }
 
+  /**
+   * Findet den Index des nächsten Punktes auf der Route
+   */
   private findClosestRouteIndex(userPos: LatLng, routeCoords: LatLng[]): number {
     let closestIndex = 0;
     let minDistance = Infinity;
@@ -489,44 +566,6 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     }
 
     return closestIndex;
-  }
-
-  private updateRemainingRoute(currentPos: LatLng): void {
-    if (!this.fullRoute.length || !this.remainingRoutePolyline) {
-      return;
-    }
-
-    const closestIndex = this.findClosestRouteIndex(currentPos, this.fullRoute);
-    this.remainingRoute = this.fullRoute.slice(closestIndex);
-
-    const remainingCoords = this.remainingRoute.map(c => [c.lat, c.lng] as L.LatLngExpression);
-    this.remainingRoutePolyline.setLatLngs(remainingCoords);
-  }
-
-  private async saveRouteToSupabase(durationMs: number): Promise<void> {
-    if (!this.recordedTrack.length) return;
-
-    const routePoints = this.recordedTrack.map((p: LatLng) => ({
-      lat: p.lat,
-      lng: p.lng,
-      timestamp: Date.now(),
-    }));
-
-    const distance = this.totalDistanceMeters;
-    const durationHours = durationMs > 0 ? durationMs / 3_600_000 : 0;
-    const averageSpeed = durationHours > 0 ? (distance / 1000) / durationHours : 0;
-
-    try {
-      await this.tourService.saveTour({
-        duration: durationMs,
-        distance,
-        average_speed: averageSpeed,
-        route_points: routePoints,
-      });
-      console.log('Route saved to Supabase');
-    } catch (err) {
-      console.error('Supabase save error', err);
-    }
   }
 
   // Modal methods
@@ -655,6 +694,17 @@ export class Tab1Page implements AfterViewInit, OnDestroy {
     if (this.navigationWatchId) {
       await this.locationService.clearWatch(this.navigationWatchId);
       this.navigationWatchId = null;
+    }
+
+    // Speichere Navigation-Route wenn User sich bewegt hat
+    if (this.recordedTrack.length > 1 && this.recordingStartTime) {
+      const startTime = this.recordingStartTime;
+      const durationSecs = (Date.now() - startTime) / 1000;
+      this.recordingStartTime = null;
+      if (durationSecs > 1) {
+        console.log('Speichere abgeschlossene Navigation-Tour mit startTime:', startTime);
+        await this.saveCompletedTour(durationSecs, startTime);
+      }
     }
   }
 

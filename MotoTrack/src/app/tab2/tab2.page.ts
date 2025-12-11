@@ -8,17 +8,24 @@ import {
   IonToolbar,
   IonIcon,
   IonCard,
+  IonCardContent,
+  IonCardHeader,
   IonRefresher,
   IonRefresherContent,
   IonItemOptions,
   IonItemOption,
+  IonItem,
   IonButton,
+  IonLabel,
   RefresherCustomEvent,
+  IonText,
 } from '@ionic/angular/standalone';
 import * as L from 'leaflet';
 import { interval, Subscription } from 'rxjs';
 import { TourService, Tour } from '../services/tour.service';
 import { ThemeService } from '../services/theme.service';
+import { addIcons } from 'ionicons';
+import { trash, mapOutline } from 'ionicons/icons';
 
 interface MonthOption {
   value: number;
@@ -46,28 +53,36 @@ interface MonthOption {
   styleUrls: ['tab2.page.scss'],
 })
 export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
+  // Daten
   tours: Tour[] = [];
   filteredTours: Tour[] = [];
-  selectedMonth: number = 0; // Start with January
+
+  // Filter
+  selectedMonth: number = new Date().getMonth() + 1; // 1-12
   selectedYear: number = new Date().getFullYear();
   availableYears: number[] = [];
+
+  // Monate mit deutschen Labels
   months: MonthOption[] = [
-    { value: 0, label: 'Jan' },
-    { value: 1, label: 'Feb' },
-    { value: 2, label: 'Mär' },
-    { value: 3, label: 'Apr' },
-    { value: 4, label: 'Mai' },
-    { value: 5, label: 'Jun' },
-    { value: 6, label: 'Jul' },
-    { value: 7, label: 'Aug' },
-    { value: 8, label: 'Sep' },
-    { value: 9, label: 'Okt' },
-    { value: 10, label: 'Nov' },
-    { value: 11, label: 'Dez' },
+    { value: 1, label: 'JAN' },
+    { value: 2, label: 'FEB' },
+    { value: 3, label: 'MÄR' },
+    { value: 4, label: 'APR' },
+    { value: 5, label: 'MAI' },
+    { value: 6, label: 'JUN' },
+    { value: 7, label: 'JUL' },
+    { value: 8, label: 'AUG' },
+    { value: 9, label: 'SEP' },
+    { value: 10, label: 'OKT' },
+    { value: 11, label: 'NOV' },
+    { value: 12, label: 'DEZ' },
   ];
 
+  // Mini-Map Instanzen
   private mapInstances: Map<string, L.Map> = new Map();
   isDarkMode = false;
+
+  // Subscriptions
   private yearCheckSubscription: Subscription | null = null;
   private lastCheckedYear = new Date().getFullYear();
 
@@ -75,180 +90,209 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     private tourService: TourService,
     private router: Router,
     private themeService: ThemeService
-  ) {}
+  ) {
+    addIcons({ trash, mapOutline });
+  }
 
   ngOnInit(): void {
+    // Dark Mode abonnieren
     this.themeService.darkMode$.subscribe((isDark) => {
       this.isDarkMode = isDark;
     });
-    this.loadTours();
+
+    // Initiale Daten laden
     this.initializeYears();
+    this.loadTours();
+
+    // Jedes Jahr überprüfen ob Jahr gewechselt hat
     this.startYearCheckInterval();
   }
 
-  private startYearCheckInterval(): void {
-    // Check every 30 minutes if the year has changed
-    // Also triggers in December to prepare for next year
-    this.yearCheckSubscription = interval(30 * 60 * 1000).subscribe(() => {
-      this.checkAndUpdateYears();
-    });
-  }
+  /**
+   * Lädt alle Touren aus Supabase
+   */
+  private async loadTours(): Promise<void> {
+    try {
+      console.log('Lade alle Touren...');
+      this.tours = await this.tourService.getAllTours();
+      console.log('Touren geladen:', this.tours.length);
 
-  private checkAndUpdateYears(): void {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth();
-
-    // Update if: year has changed OR we're in December (prepare for next year)
-    if (currentYear !== this.lastCheckedYear || currentMonth === 11) {
-      this.lastCheckedYear = currentYear;
-      this.initializeYears();
-      // Trigger UI update
-      this.selectedYear = currentYear;
-      this.filterTours();
+      // Filtere nach aktuellen Jahr/Monat
+      this.filterToursByYearAndMonth();
+    } catch (err) {
+      console.error('Fehler beim Laden der Touren:', err);
     }
   }
 
+  /**
+   * Filtert Touren nach Jahr und Monat
+   */
+  filterToursByYearAndMonth(): void {
+    this.filteredTours = this.tours.filter((tour) => {
+      // Berechne Jahr und Monat aus created_at falls nicht vorhanden
+      const year = tour.year || (tour.created_at ? new Date(tour.created_at).getFullYear() : 0);
+      const month = tour.month || (tour.created_at ? new Date(tour.created_at).getMonth() + 1 : 0);
+
+      return year === this.selectedYear && month === this.selectedMonth;
+    });
+
+    console.log(`Gefilterte Touren für ${this.selectedMonth}/${this.selectedYear}:`, this.filteredTours.length);
+
+    // Re-initialize Mini-Maps
+    setTimeout(() => {
+      this.initializeMiniMaps();
+    }, 100);
+  }
+
+  /**
+   * Initialisiert verfügbare Jahre (aktuell + letzte 4 Jahre)
+   */
   private initializeYears(): void {
     const currentYear = new Date().getFullYear();
-    // Create array of current year + last 4 years
     this.availableYears = [];
     for (let i = currentYear; i >= currentYear - 4; i--) {
       this.availableYears.push(i);
     }
   }
 
-  ngAfterViewInit(): void {
-    this.initializeMiniMaps();
-  }
-
-  ngOnDestroy(): void {
-    // Cleanup subscriptions
-    if (this.yearCheckSubscription) {
-      this.yearCheckSubscription.unsubscribe();
-    }
-    // Cleanup maps
-    this.mapInstances.forEach((map) => map.remove());
-    this.mapInstances.clear();
-  }
-
-  async loadTours(): Promise<void> {
-    try {
-      this.tours = await this.tourService.getAllTours();
-      this.filterTours();
-    } catch (err) {
-      console.error('Error loading tours:', err);
-    }
-  }
-
-  filterTours(): void {
-    this.filteredTours = this.tours.filter((tour) => {
-      if (!tour.created_at) return false;
-      const tourDate = new Date(tour.created_at);
-      return tourDate.getMonth() === this.selectedMonth && tourDate.getFullYear() === this.selectedYear;
+  /**
+   * Startet Intervall zum Überprüfen von Jahreswechsel
+   */
+  private startYearCheckInterval(): void {
+    this.yearCheckSubscription = interval(30 * 60 * 1000).subscribe(() => {
+      const currentYear = new Date().getFullYear();
+      if (currentYear !== this.lastCheckedYear) {
+        this.lastCheckedYear = currentYear;
+        this.initializeYears();
+        this.selectedYear = currentYear;
+        this.selectedMonth = new Date().getMonth() + 1;
+        this.filterToursByYearAndMonth();
+      }
     });
+  }
 
-    // Re-initialize mini maps after filtering
+  /**
+   * Wechselt den ausgewählten Monat
+   */
+  onMonthChange(month: number): void {
+    this.selectedMonth = month;
+    this.filterToursByYearAndMonth();
+  }
+
+  /**
+   * Wechselt das ausgewählte Jahr
+   */
+  onYearChange(year: number): void {
+    this.selectedYear = year;
+    this.filterToursByYearAndMonth();
+  }
+
+  /**
+   * Refresh-Handler
+   */
+  async onRefresh(event: RefresherCustomEvent): Promise<void> {
+    await this.loadTours();
+    event.detail.complete();
+  }
+
+  ngAfterViewInit(): void {
+    // Initialisiere Mini-Maps
     setTimeout(() => {
       this.initializeMiniMaps();
     }, 100);
   }
 
-  onMonthChange(month?: number): void {
-    if (month !== undefined) {
-      this.selectedMonth = month;
-    }
-    this.filterTours();
-  }
-
-  onYearChange(year: number): void {
-    this.selectedYear = year;
-    this.filterTours();
-  }
-
-  onRefresh(event: RefresherCustomEvent): void {
-    this.loadTours().then(() => {
-      event.detail.complete();
-    });
-  }
-
-  initializeMiniMaps(): void {
+  /**
+   * Initialisiert Mini-Maps für gefilterte Touren
+   */
+  private initializeMiniMaps(): void {
     this.filteredTours.forEach((tour) => {
+      if (!tour.id) return;
+
       const mapId = `map-${tour.id}`;
       const mapContainer = document.getElementById(mapId);
 
-      if (mapContainer && !this.mapInstances.has(mapId)) {
-        try {
-          // Initialize Leaflet map
-          const map = L.map(mapId, {
-            zoom: 12,
-            zoomControl: false,
-            attributionControl: false,
-            dragging: false,
-            scrollWheelZoom: false,
-          });
+      // Skip wenn Map bereits existiert
+      if (this.mapInstances.has(mapId)) return;
 
-          // Add tile layer
-          const tileUrl = this.isDarkMode
-            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      if (!mapContainer || mapContainer.offsetHeight === 0) {
+        console.warn(`Map container ${mapId} not found or has zero height`);
+        return;
+      }
 
-          L.tileLayer(tileUrl, {
-            attribution: '',
+      try {
+        // Erstelle Leaflet Map
+        const map = L.map(mapId, {
+          zoom: 12,
+          zoomControl: false,
+          attributionControl: false,
+          dragging: false,
+          scrollWheelZoom: false,
+          boxZoom: false,
+          doubleClickZoom: false,
+          keyboard: false,
+        } as any);
+
+        // Tile Layer basierend auf Dark Mode
+        const tileUrl = this.isDarkMode
+          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+          : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+        L.tileLayer(tileUrl, {
+          attribution: '',
+        }).addTo(map);
+
+        // Zeichne Route
+        if (tour.route_points && tour.route_points.length > 0) {
+          const routeCoordinates = tour.route_points.map((p) => [p.lat, p.lng] as L.LatLngTuple);
+
+          // Rote Polyline für Route
+          L.polyline(routeCoordinates, {
+            color: '#ff0000',
+            weight: 3,
+            opacity: 0.8,
           }).addTo(map);
 
-          // Draw route polyline
-          if (tour.route_points && tour.route_points.length > 0) {
-            const routeCoordinates = tour.route_points.map((p) => [p.lat, p.lng] as L.LatLngTuple);
+          // Start-Marker (grün)
+          L.circleMarker([routeCoordinates[0][0], routeCoordinates[0][1]], {
+            radius: 5,
+            fillColor: '#00aa00',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8,
+          }).addTo(map);
 
-            // Draw polyline
-            L.polyline(routeCoordinates, {
-              color: '#ff0000',
-              weight: 3,
-              opacity: 0.7,
-            }).addTo(map);
+          // End-Marker (rot)
+          const lastCoord = routeCoordinates[routeCoordinates.length - 1];
+          L.circleMarker([lastCoord[0], lastCoord[1]], {
+            radius: 5,
+            fillColor: '#ff0000',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8,
+          }).addTo(map);
 
-            // Fit bounds to route
-            const bounds = L.latLngBounds(routeCoordinates as L.LatLngTuple[]);
-            map.fitBounds(bounds, { padding: [20, 20] });
-
-            // Add markers for start and end
-            L.circleMarker([routeCoordinates[0][0], routeCoordinates[0][1]], {
-              radius: 5,
-              fillColor: '#00aa00',
-              color: '#fff',
-              weight: 2,
-              opacity: 1,
-              fillOpacity: 0.8,
-            }).addTo(map);
-
-            L.circleMarker(
-              [routeCoordinates[routeCoordinates.length - 1][0], routeCoordinates[routeCoordinates.length - 1][1]],
-              {
-                radius: 5,
-                fillColor: '#ff0000',
-                color: '#fff',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8,
-              }
-            ).addTo(map);
-          }
-
-          this.mapInstances.set(mapId, map);
-        } catch (err) {
-          console.error(`Error initializing map ${mapId}:`, err);
+          // Fit bounds
+          const bounds = L.latLngBounds(routeCoordinates);
+          map.fitBounds(bounds, { padding: [20, 20] });
         }
+
+        this.mapInstances.set(mapId, map);
+        console.log(`Mini-map ${mapId} initialized`);
+      } catch (err) {
+        console.error(`Fehler beim Initialisieren von Map ${mapId}:`, err);
       }
     });
   }
 
-  getTourDurationMinutes(tour: Tour): number {
-    return Math.round(tour.duration / 60000); // Convert ms to minutes
-  }
-
+  /**
+   * Gibt formatierte Start-Zeit zurück
+   */
   getStartTime(tour: Tour): string {
     if (!tour.route_points || tour.route_points.length === 0) {
-      if (!tour.created_at) return '';
+      if (!tour.created_at) return '--:--';
       return new Date(tour.created_at).toLocaleTimeString('de-CH', {
         hour: '2-digit',
         minute: '2-digit',
@@ -260,12 +304,13 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  /**
+   * Gibt formatierte End-Zeit zurück
+   */
   getEndTime(tour: Tour): string {
     if (!tour.route_points || tour.route_points.length === 0) {
-      if (!tour.created_at) return '';
-      const endDate = new Date(
-        new Date(tour.created_at).getTime() + tour.duration
-      );
+      if (!tour.created_at) return '--:--';
+      const endDate = new Date(new Date(tour.created_at).getTime() + tour.duration * 1000);
       return endDate.toLocaleTimeString('de-CH', {
         hour: '2-digit',
         minute: '2-digit',
@@ -278,23 +323,52 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  /**
+   * Gibt formatiertes Datum zurück
+   */
   getFormattedDate(createdAt?: string): string {
     if (!createdAt) return '';
     const date = new Date(createdAt);
     return date.toLocaleDateString('de-CH', {
-      weekday: 'short',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     });
   }
 
+  /**
+   * Formatiert Distanz (km mit 1 Dezimalstelle)
+   */
+  formatDistance(distance: number): string {
+    return distance.toFixed(1);
+  }
+
+  /**
+   * Formatiert Durchschnittsgeschwindigkeit
+   */
+  formatSpeed(speed: number): string {
+    return speed.toFixed(0);
+  }
+
+  /**
+   * Konvertiert Sekunden zu Minuten
+   */
+  formatDuration(durationSeconds: number): number {
+    return Math.round(durationSeconds / 60);
+  }
+
+  /**
+   * Navigiert zur Tour-Detailseite
+   */
   goToDetail(tourId?: string): void {
     if (tourId) {
       this.router.navigate(['/tabs/tab2/tour-detail', tourId]);
     }
   }
 
+  /**
+   * Löscht eine Tour
+   */
   async deleteTour(tourId?: string, event?: Event): Promise<void> {
     if (event) {
       event.stopPropagation();
@@ -302,14 +376,46 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
     if (!tourId) return;
 
+    // Bestätigung vor Löschen
+    const confirmed = confirm('Diese Route wirklich löschen?');
+    if (!confirmed) return;
+
     try {
+      console.log('Lösche Tour:', tourId);
       await this.tourService.deleteTour(tourId);
-      // Remove from local array and re-filter
+
+      // Entferne aus Array und re-filter
       this.tours = this.tours.filter((t) => t.id !== tourId);
-      this.filterTours();
-      console.log('Tour deleted successfully');
+      this.filterToursByYearAndMonth();
+
+      // Cleanup Mini-Map
+      const mapId = `map-${tourId}`;
+      const mapInstance = this.mapInstances.get(mapId);
+      if (mapInstance) {
+        mapInstance.remove();
+        this.mapInstances.delete(mapId);
+      }
+
+      console.log('Tour erfolgreich gelöscht');
     } catch (err) {
-      console.error('Error deleting tour:', err);
+      console.error('Fehler beim Löschen der Tour:', err);
     }
+  }
+
+  ngOnDestroy(): void {
+    // Cleanup subscriptions
+    if (this.yearCheckSubscription) {
+      this.yearCheckSubscription.unsubscribe();
+    }
+
+    // Cleanup maps
+    this.mapInstances.forEach((map) => {
+      try {
+        map.remove();
+      } catch (err) {
+        console.error('Error cleaning up map:', err);
+      }
+    });
+    this.mapInstances.clear();
   }
 }
