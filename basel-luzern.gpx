@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="MotoTrackGPXGenerator"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1
+                         http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Basel nach Luzern</name>
+    <author>ChatGPT</author>
+  </metadata>
+
+  <trk>
+    <name>Basel → Luzern</name>
+    <trkseg>
+
+      <!-- Basel (Start) -->
+      <trkpt lat="47.5596" lon="7.5886"></trkpt>
+
+      <!-- Basel → Muttenz -->
+      <trkpt lat="47.5470" lon="7.6220"></trkpt>
+      <trkpt lat="47.5412" lon="7.6412"></trkpt>
+      <trkpt lat="47.5368" lon="7.6535"></trkpt>
+
+      <!-- Pratteln → Liestal -->
+      <trkpt lat="47.5217" lon="7.6915"></trkpt>
+      <trkpt lat="47.4828" lon="7.7364"></trkpt>
+      <trkpt lat="47.4780" lon="7.7439"></trkpt>
+
+      <!-- Sissach → Gelterkinden -->
+      <trkpt lat="47.4645" lon="7.8131"></trkpt>
+      <trkpt lat="47.4552" lon="7.8543"></trkpt>
+
+      <!-- Olten Gebiet -->
+      <trkpt lat="47.3506" lon="7.9030"></trkpt>
+      <trkpt lat="47.3504" lon="7.9275"></trkpt>
+      <trkpt lat="47.3449" lon="7.9443"></trkpt>
+
+      <!-- Aarburg → Zofingen -->
+      <trkpt lat="47.3202" lon="7.9036"></trkpt>
+      <trkpt lat="47.2871" lon="7.9452"></trkpt>
+
+      <!-- Sursee -->
+      <trkpt lat="47.2405" lon="8.1120"></trkpt>
+      <trkpt lat="47.2294" lon="8.1400"></trkpt>
+
+      <!-- Rothenburg → Emmen -->
+      <trkpt lat="47.1707" lon="8.2435"></trkpt>
+      <trkpt lat="47.1090" lon="8.3072"></trkpt>
+
+      <!-- Luzern (Ziel) -->
+      <trkpt lat="47.0502" lon="8.3093"></trkpt>
+
+    </trkseg>
+  </trk>
+</gpx>
