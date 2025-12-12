@@ -1,0 +1,207 @@
+\documentclass{article}
+\usepackage{babel, ngerman}
+\usepackage{graphicx}
+\usepackage{float}
+
+\begin{document}
+
+% ===================== TITELBLATT =====================
+\begin{titlepage}
+  \centering
+  
+  {\Large \textbf{Modul M335 – Mobile Applikationen realisieren}}\\[6pt]
+  {\large Dokumentation}\\[18pt]
+
+  \rule{\textwidth}{0.4pt}\\[14pt]
+  
+  {\huge \textbf{MotoTrack}}\\[6pt]
+  {\large Ein mobiler Motorrad-Routen-Tracker}\\[18pt]
+
+  \rule{\textwidth}{0.4pt}\\[30pt]
+
+  \begin{tabular}{@{}ll}
+    \textbf{Dozent:} & Urs Beyeler \\   
+    \textbf{Autor:} & Peter Ngo \\
+    \textbf{Klasse:} & 23-F \\ % falls du eine Klasse brauchst, sonst löschen
+    \textbf{Datum:} & 8. Dezember 2025 \\
+  \end{tabular}
+
+  \vfill
+
+  {\small Diese Dokumentation beschreibt Idee, Anforderungen, Datenmodell,
+  Wireframes und technische Umsetzung der MotoTrack-App.}
+\end{titlepage}
+
+\subsection*{1. Projektidee konkretisieren}
+
+MotoTrack ist eine Mobile Hybrid-App, welche Motorradfahrern ermöglicht, ihre Touren per GPS aufzuzeichnen und auf einer Karte darzustellen. Die App konzentriert sich auf grundlegende Funktionen, die für eine einfache Routenerfassung notwendig sind: aktuelle Position anzeigen, Fahrtrichtung darstellen, Route mitschneiden und Tourdaten speichern.
+
+Die Anwendung besteht aus vier Ansichten:
+\begin{itemize}
+    \item \textbf{Navigation / Karte} – Anzeige von Position und Fahrtrichtung
+    \item \textbf{Live-Tracking} – Aufzeichnung der Strecke als Linie
+    \item \textbf{Routen-Statistik} – Distanz, Dauer, Geschwindigkeit
+    \item \textbf{Einstellungen} – Dark Mode und App-Informationen
+\end{itemize}
+
+Die App wird mit Ionic, Angular und Capacitor entwickelt und soll sowohl als PWA wie auch als Android-App lauffähig sein.
+
+\subsection*{2. User Stories}
+
+\textbf{Navigation / Karte}
+\begin{itemize}
+    \item Als Motorradfahrer möchte ich meine aktuelle Position auf einer Karte sehen, um mich orientieren zu können.
+    \item Als Motorradfahrer möchte ich die Fahrtrichtung sehen, um meine Ausrichtung besser einschätzen zu können.
+\end{itemize}
+
+\textbf{Live-Tracking}
+\begin{itemize}
+    \item Als Motorradfahrer möchte ich das Tracking starten und stoppen können, damit meine Route aufgezeichnet wird.
+    \item Als Motorradfahrer möchte ich die gefahrene Strecke als Linie sehen, um den Routenverlauf zu erkennen.
+\end{itemize}
+
+\textbf{Routen-Statistik}
+\begin{itemize}
+    \item Als Nutzer möchte ich Distanz, Dauer und Durchschnittsgeschwindigkeit sehen, um die Tour auswerten zu können.
+    \item Als Nutzer möchte ich die Tour als JSON exportieren können, um sie weiterzuverwenden.
+\end{itemize}
+
+\textbf{Einstellungen}
+\begin{itemize}
+    \item Als Nutzer möchte ich einen Dark Mode aktivieren können.
+    \item Als Nutzer möchte ich gespeicherte Daten löschen können.
+\end{itemize}
+
+\subsection*{3. Planung}
+
+\subsubsection*{3.1 Datenmodell (Supabase)}
+
+Das Datenmodell der Anwendung ist bewusst schlank gehalten und besteht aus einer einzelnen Tabelle \texttt{tours}. 
+Sie speichert alle relevanten Daten einer aufgezeichneten Motorradtour, darunter Distanz, Dauer und die vollständige Route als JSON-Struktur.
+
+\begin{itemize}
+    \item \texttt{id} – UUID (Primärschlüssel)
+    \item \texttt{created\_at} – Timestamp
+    \item \texttt{duration} – Integer (Sekunden)
+    \item \texttt{distance} – Float (Kilometer)
+    \item \texttt{average\_speed} – Float
+    \item \texttt{route\_points} – JSON (Liste an GPS-Koordinaten)
+\end{itemize}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.55\textwidth]{./figures/datenbank.png}
+\caption{Datenbankmodell der Tabelle \texttt{tours}}
+\end{figure}
+
+Die Route wird als JSON gespeichert, da sie eine dynamische Menge von GPS-Punkten enthält und somit flexibel und effizient abgelegt werden kann.
+\begin{verbatim}
+[
+  { "lat": 47.12345, "lng": 8.12345, "timestamp": 1681234567890 }
+]
+\end{verbatim}
+
+\subsubsection*{3.2 Wireframes (Beschreibung)}
+
+\textbf{Navigation / Karte}
+\begin{itemize}
+    \item Karte mit aktuellem Standort
+    \item Darstellung der Fahrtrichtung
+    \item Button „Tracking starten“
+\end{itemize}
+
+\textbf{Live-Tracking}
+\begin{itemize}
+    \item Karte mit aufgezeichneter Route
+    \item Anzeige der aktuellen Distanz
+    \item Button „Tracking stoppen“
+\end{itemize}
+
+\textbf{Routen-Statistik}
+\begin{itemize}
+    \item Anzeige von Distanz, Dauer und Durchschnittsgeschwindigkeit
+    \item Buttons: „Tour speichern“ und „Exportieren“
+\end{itemize}
+
+\textbf{Einstellungen}
+\begin{itemize}
+    \item Dark Mode Toggle
+    \item App-Informationen
+    \item Button „Daten löschen“
+\end{itemize}
+
+Die folgenden Abbildungen zeigen die Benutzeroberflächen der Anwendung in Form
+von UI-Mockups. Die Screenshots stammen aus der finalen Umsetzung der App und
+entsprechen dem geplanten Layout der einzelnen Ansichten.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{./figures/tab1.png}
+\caption{UI-Mockup – Navigation / Aufnahme}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{./figures/tab2.png}
+\caption{UI-Mockup – Meine Routen}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{./figures/tab3.png}
+\caption{UI-Mockup – Routen-Statistik}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{./figures/tab4.png}
+\caption{UI-Mockup – Einstellungen}
+\end{figure}
+
+
+\subsubsection*{3.3 UI-Elemente (Ionic Components)}
+
+\begin{itemize}
+    \item \texttt{ion-header}, \texttt{ion-toolbar}, \texttt{ion-title}
+    \item \texttt{ion-content}
+    \item \texttt{ion-button}
+    \item \texttt{ion-icon}
+    \item \texttt{ion-list}, \texttt{ion-item}
+    \item \texttt{ion-card}
+    \item \texttt{ion-toggle}
+    \item \texttt{ion-tabs}
+\end{itemize}
+
+\subsubsection*{3.4 Offline-Tracking und Synchronisation}
+
+Die Anwendung unterstützt das Aufzeichnen von Touren ohne aktive Internetverbindung. 
+Wenn das Gerät offline ist, werden abgeschlossene Touren lokal im \texttt{LocalStorage} 
+unter dem Schlüssel \texttt{pendingTours} gespeichert. 
+
+Sobald wieder eine Internetverbindung besteht, versucht die App automatisch, alle 
+lokal gespeicherten Touren mit Supabase zu synchronisieren. Nach einem erfolgreichen 
+Upload werden die entsprechenden Einträge aus dem lokalen Speicher entfernt.
+
+Dieses Verhalten stellt sicher, dass Touren auch in Regionen ohne Mobilfunkempfang 
+aufgezeichnet werden können und später zuverlässig nachgeladen werden.
+
+\subsubsection*{3.5 Entwicklung: OSRM und CORS-Proxy}
+
+Während der lokalen Entwicklung kann es zu CORS-Problemen kommen, wenn Routing-Anfragen 
+direkt an die öffentliche OSRM-API (\texttt{router.project-osrm.org}) gestellt werden. 
+Um dies zu umgehen, wurde eine Proxy-Konfiguration (\texttt{proxy.conf.json}) eingerichtet.
+
+Der Entwicklungsserver wird mit folgendem Befehl gestartet:
+
+\begin{verbatim}
+npm run start:proxy
+\end{verbatim}
+
+Dadurch werden Anfragen an \texttt{/osrm/*} korrekt weitergeleitet, 
+und die App kann ohne CORS-Fehler getestet werden.
+
+\subsection*{Zusammenfassung}
+
+MotoTrack bietet eine kompakte Lösung zur Aufzeichnung von Motorradtouren. Die App umfasst vier übersichtliche Ansichten, nutzt GPS- und Sensorfunktionen und setzt auf moderne Webtechnologien. Der Funktionsumfang ist bewusst schlank gehalten, damit die Umsetzung innerhalb des ÜK-Moduls realisierbar bleibt.
+
+\end{document}
