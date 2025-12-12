@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { environment } from '../../environments/environment';
 
 export interface LatLng {
   lat: number;
@@ -15,20 +16,34 @@ export interface RouteResponse {
   providedIn: 'root',
 })
 export class RoutingService {
-  // Use a relative proxy during local development to avoid CORS errors.
-  // If running in a browser on localhost and you configure a dev proxy (see README below),
-  // requests will be sent to `/osrm/route/v1/driving/...` which the dev server will forward
-  // to the real OSRM server. In production or on device we use the public OSRM endpoint.
-  private readonly osrmUrl = (typeof window !== 'undefined' && window.location.hostname === 'localhost')
-    ? '/osrm/route/v1/driving'
-    : 'https://router.project-osrm.org/route/v1/driving';
+  // Base URL comes from environment to allow proxy/HTTPS toggling per build
+  private readonly osrmUrl = environment.osrmBaseUrl;
 
   async getRoute(start: LatLng, end: LatLng): Promise<RouteResponse | null> {
     try {
       const url = `${this.osrmUrl}/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
       console.log('OSRM URL:', url);
+      
       const response = await fetch(url);
       console.log('OSRM Response status:', response.status);
+
+      // Validate response
+      if (!response.ok) {
+        console.error(`OSRM error: HTTP ${response.status}`);
+        const text = await response.text();
+        console.error('OSRM error response:', text.substring(0, 200));
+        return null;
+      }
+
+      // Check content type
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('OSRM did not return JSON. Content-Type:', contentType);
+        const text = await response.text();
+        console.error('OSRM response text:', text.substring(0, 200));
+        return null;
+      }
+
       const data = await response.json();
       console.log('OSRM Data:', data);
 

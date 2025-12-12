@@ -16,9 +16,31 @@ export class LocationService {
   public currentPosition$: Observable<LocationPosition | null> = this.currentPositionSubject.asObservable();
   private watchId: string | null = null;
 
+  private async ensurePermission(): Promise<boolean> {
+    try {
+      const perm = await Geolocation.checkPermissions();
+      if (perm.location === 'granted') return true;
+      const result = await Geolocation.requestPermissions();
+      return result.location === 'granted';
+    } catch (err) {
+      // On web this may throw in some contexts; treat as not granted
+      console.warn('Geolocation permission check/request failed:', err);
+      return false;
+    }
+  }
+
   async getCurrentPosition(): Promise<LocationPosition | null> {
     try {
-      const position: Position = await Geolocation.getCurrentPosition();
+      const granted = await this.ensurePermission();
+      if (!granted) {
+        console.warn('Location permission not granted');
+        return null;
+      }
+      const position: Position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      });
       const locationPos: LocationPosition = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
@@ -38,8 +60,13 @@ export class LocationService {
     }
 
     try {
+      const granted = await this.ensurePermission();
+      if (!granted) {
+        console.warn('Location permission not granted for watch');
+        return;
+      }
       this.watchId = await Geolocation.watchPosition(
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
         (position, err) => {
           if (err) {
             console.error('Watch position error:', err);
@@ -76,8 +103,13 @@ export class LocationService {
     onError?: (err: any) => void
   ): Promise<string | null> {
     try {
+      const granted = await this.ensurePermission();
+      if (!granted) {
+        console.warn('Location permission not granted for custom watch');
+        return null;
+      }
       const id = await Geolocation.watchPosition(
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
         (position, err) => {
           if (err) {
             console.error('Watch position error:', err);
