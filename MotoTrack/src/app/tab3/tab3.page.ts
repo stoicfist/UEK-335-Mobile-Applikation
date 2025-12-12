@@ -37,44 +37,45 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
   private radarChart?: Chart;
 
   private themeSub: any;
+  private themeRebuildTimer?: any;
 
   constructor(private tourService: TourService, private themeService: ThemeService) {}
 
   async ngAfterViewInit(): Promise<void> {
-    await this.loadTours();
-    this.initYears();
+    await this.ensureDataLoaded();
     this.computeKpis(this.selectedYear);
-
-    // Delay initial chart rendering slightly so the Ionic tab/page has time
-    // to attach elements to the document. This avoids Chart.js trying to
-    // measure canvases that are not yet connected and throwing ownerDocument errors.
-    setTimeout(() => {
-      try {
-        this.renderRadarChart();
-        this.renderCharts();
-      } catch (e) {
-        // Defensive: log and continue. The render methods themselves retry
-        // if the element isn't attached, so this should be rare.
-        // Keep the log concise so the dev console points to this code path.
-        // eslint-disable-next-line no-console
-        console.warn('Tab3: initial chart render failed, will retry in background', e);
-        // schedule another attempt
-        setTimeout(() => { this.renderRadarChart(); this.renderCharts(); }, 400);
-      }
-    }, 220);
+    this.safeRenderAll();
 
     // react on theme changes
     // call updateChartColors asynchronously to avoid synchronous re-render race with view init
     this.themeSub = this.themeService.darkMode$.subscribe(() => {
-      setTimeout(() => this.updateChartColors(), 0);
+      this.scheduleThemeRebuild();
     });
   }
 
+  async ionViewWillEnter(): Promise<void> {
+    await this.ensureDataLoaded();
+    this.computeKpis(this.selectedYear);
+    // Immer frisch aufbauen, um zerstörte Instanzen nach Navigationswechseln sicher zu ersetzen
+    this.destroyCharts();
+    this.safeRenderAll();
+  }
+
+  ionViewDidLeave(): void {
+    this.destroyCharts();
+  }
+
   ngOnDestroy(): void {
-    this.barChart?.destroy();
-    this.lineChart?.destroy();
-    this.radarChart?.destroy();
+    this.destroyCharts();
     if (this.themeSub && typeof this.themeSub.unsubscribe === 'function') this.themeSub.unsubscribe();
+    if (this.themeRebuildTimer) clearTimeout(this.themeRebuildTimer);
+  }
+
+  private async ensureDataLoaded(): Promise<void> {
+    if (!this.tours.length) {
+      await this.loadTours();
+      this.initYears();
+    }
   }
 
   private async loadTours(): Promise<void> {
@@ -143,6 +144,23 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
   private renderCharts(): void {
     this.renderBarChart();
     this.renderLineChart();
+  }
+
+  /** Render charts safely after a short delay to allow DOM to attach canvases */
+  private safeRenderAll(): void {
+    setTimeout(() => {
+      try {
+        this.renderRadarChart();
+        this.renderCharts();
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('Tab3: chart render retry after failure', e);
+        setTimeout(() => {
+          this.renderRadarChart();
+          this.renderCharts();
+        }, 300);
+      }
+    }, 200);
   }
 
   /** Render or update the radar (spider) chart placed at the top of the page */
@@ -352,11 +370,26 @@ export class Tab3Page implements AfterViewInit, OnDestroy {
 
   private updateChartColors(): void {
     // Recreate charts to apply theme colors simply
+    this.destroyCharts();
+    this.safeRenderAll();
+  }
+
+  private destroyCharts(): void {
     this.barChart?.destroy();
     this.lineChart?.destroy();
     this.radarChart?.destroy();
-    this.renderRadarChart();
-    this.renderCharts();
+    this.barChart = undefined;
+    this.lineChart = undefined;
+    this.radarChart = undefined;
+  }
+
+  private scheduleThemeRebuild(): void {
+    if (this.themeRebuildTimer) clearTimeout(this.themeRebuildTimer);
+    // Warte kurz, damit der Layout-Switch (Dark/Light) durch ist, bevor wir neu rendern
+    this.themeRebuildTimer = setTimeout(() => {
+      this.destroyCharts();
+      this.safeRenderAll();
+    }, 180);
   }
 
 }

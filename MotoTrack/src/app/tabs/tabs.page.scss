@@ -9,6 +9,12 @@ ion-tab-button {
   --color-selected: var(--ion-color-primary);
 }
 
+/* Sicherheitsnetz: Labels immer anzeigen (falls irgendwo display/opacity überschrieben wurde) */
+ion-tab-button ion-label {
+  display: block;
+  opacity: 1;
+}
+
 :host-context(html.ion-palette-dark) ion-tab-bar {
   --background: #000000 !important;
   --border-color: rgba(255, 255, 255, 0.08);

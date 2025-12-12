@@ -55,3 +55,18 @@
   }
 }
 
+/* Dark mode select readability for year picker */
+:host-context(html.ion-palette-dark) ion-select,
+:host-context(html.ion-palette-dark) ion-select-option {
+	--color: var(--ion-color-success);
+	color: var(--ion-color-success);
+}
+
+:host-context(html.ion-palette-dark) .picker-toolbar,
+:host-context(html.ion-palette-dark) .picker-button,
+:host-context(html.ion-palette-dark) .picker-button.activated,
+:host-context(html.ion-palette-dark) .picker-opt,
+:host-context(html.ion-palette-dark) .picker-opt-selected {
+	color: var(--ion-color-success);
+}
+
