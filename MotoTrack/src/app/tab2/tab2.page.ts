@@ -94,6 +94,14 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     addIcons({layersOutline,mapOutline,speedometerOutline,trash});
   }
 
+  ngOnDestroy(): void {
+    if (this.yearCheckSubscription) {
+      this.yearCheckSubscription.unsubscribe();
+      this.yearCheckSubscription = null;
+    }
+    this.destroyMiniMaps();
+  }
+
   ngOnInit(): void {
     // Dark Mode abonnieren
     this.themeService.darkMode$.subscribe((isDark) => {
@@ -102,10 +110,18 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
     // Initiale Daten laden
     this.initializeYears();
-    this.loadTours();
+    // Erste Ladung im Lifecycle-Hook (ionViewWillEnter)
 
     // Jedes Jahr überprüfen ob Jahr gewechselt hat
     this.startYearCheckInterval();
+  }
+
+  async ionViewWillEnter(): Promise<void> {
+    await this.loadTours();
+  }
+
+  ionViewDidLeave(): void {
+    this.destroyMiniMaps();
   }
 
   /**
@@ -114,6 +130,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   private async loadTours(): Promise<void> {
     try {
       console.log('Lade alle Touren...');
+      // Alte Mini-Maps räumen, bevor neue Daten kommen
+      this.destroyMiniMaps();
+
       this.tours = await this.tourService.getAllTours();
       console.log('Touren geladen:', this.tours.length);
 
@@ -128,6 +147,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
    * Filtert Touren nach Jahr und Monat
    */
   filterToursByYearAndMonth(): void {
+    // Vor Neuaufbau erst alle Mini-Maps entsorgen
+    this.destroyMiniMaps();
+
     this.filteredTours = this.tours.filter((tour) => {
       // Berechne Jahr und Monat aus created_at falls nicht vorhanden
       const year = tour.year || (tour.created_at ? new Date(tour.created_at).getFullYear() : 0);
@@ -138,10 +160,10 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
     console.log(`Gefilterte Touren für ${this.selectedMonth}/${this.selectedYear}:`, this.filteredTours.length);
 
-    // Re-initialize Mini-Maps
-    setTimeout(() => {
+    // Re-initialize Mini-Maps on next frame
+    requestAnimationFrame(() => {
       this.initializeMiniMaps();
-    }, 100);
+    });
   }
 
   /**
@@ -196,10 +218,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    // Initialisiere Mini-Maps
-    setTimeout(() => {
-      this.initializeMiniMaps();
-    }, 100);
+    // Erste Initialisierung wird von ionViewWillEnter angestoßen
   }
 
   /**
@@ -285,6 +304,17 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
         console.error(`Fehler beim Initialisieren von Map ${mapId}:`, err);
       }
     });
+  }
+
+  private destroyMiniMaps(): void {
+    this.mapInstances.forEach((map) => {
+      try {
+        map.remove();
+      } catch (err) {
+        console.warn('Fehler beim Entfernen einer Mini-Map:', err);
+      }
+    });
+    this.mapInstances.clear();
   }
 
   /**
@@ -383,39 +413,11 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     try {
       console.log('Lösche Tour:', tourId);
       await this.tourService.deleteTour(tourId);
-
-      // Entferne aus Array und re-filter
-      this.tours = this.tours.filter((t) => t.id !== tourId);
-      this.filterToursByYearAndMonth();
-
-      // Cleanup Mini-Map
-      const mapId = `map-${tourId}`;
-      const mapInstance = this.mapInstances.get(mapId);
-      if (mapInstance) {
-        mapInstance.remove();
-        this.mapInstances.delete(mapId);
-      }
-
+      // Liste sauber neu laden (inkl. Filter) und Mini-Maps neu aufbauen
+      await this.loadTours();
       console.log('Tour erfolgreich gelöscht');
     } catch (err) {
       console.error('Fehler beim Löschen der Tour:', err);
     }
-  }
-
-  ngOnDestroy(): void {
-    // Cleanup subscriptions
-    if (this.yearCheckSubscription) {
-      this.yearCheckSubscription.unsubscribe();
-    }
-
-    // Cleanup maps
-    this.mapInstances.forEach((map) => {
-      try {
-        map.remove();
-      } catch (err) {
-        console.error('Error cleaning up map:', err);
-      }
-    });
-    this.mapInstances.clear();
   }
 }
