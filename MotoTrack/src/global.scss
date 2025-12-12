@@ -76,3 +76,18 @@ html.ion-palette-dark .ion-page {
   background: #000000;
   color: #66ff00;
 }
+
+/* Toast-Nachrichten mit Abstand von oben */
+.network-toast-offset {
+  margin-top: calc(env(safe-area-inset-top, 0px) + 60px) !important;
+}
+
+.network-toast-online {
+  --background: rgba(40, 167, 69, 0.95);
+  --color: white;
+}
+
+.network-toast-offline {
+  --background: rgba(220, 53, 69, 0.95);
+  --color: white;
+}

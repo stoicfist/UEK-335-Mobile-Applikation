@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { IonApp, IonRouterOutlet } from '@ionic/angular/standalone';
+import { Router } from '@angular/router';
 import { StatusBar } from '@capacitor/status-bar';
 import { CommonModule } from '@angular/common';
 import { ToastController } from '@ionic/angular';
@@ -15,11 +16,18 @@ import { skip, distinctUntilChanged } from 'rxjs/operators';
 export class AppComponent implements OnInit, OnDestroy {
   private networkSub?: Subscription;
 
-  constructor(public networkService: NetworkService, private toastCtrl: ToastController) {
+  constructor(
+    public networkService: NetworkService,
+    private toastCtrl: ToastController,
+    private router: Router
+  ) {
     this.configureStatusBar();
   }
 
   ngOnInit(): void {
+    // Navigiere zum Loading Screen bei App-Start
+    this.router.navigate(['/loading'], { replaceUrl: true });
+
     // start the service and listen for changes
     this.networkService.startListening();
 
@@ -35,7 +43,7 @@ export class AppComponent implements OnInit, OnDestroy {
               : 'Keine Internetverbindung – Touren werden lokal gespeichert',
             duration: 3000,
             position: 'top',
-            cssClass: online ? 'network-toast-online' : 'network-toast-offline'
+            cssClass: online ? 'network-toast-online network-toast-offset' : 'network-toast-offline network-toast-offset'
           });
           await t.present();
         } catch (e) {

@@ -1,0 +1,14 @@
+{
+  "platforms": {
+    "android": {
+      "icon": {
+        "source": "src/assets/images/logo.png"
+      },
+      "splash": {
+        "source": "src/assets/images/splashscreen.png",
+        "backgroundColor": "#f5e6d0",
+        "darkBackgroundColor": "#000000"
+      }
+    }
+  }
+}

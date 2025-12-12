@@ -1,0 +1,30 @@
+<ion-content class="loading-container">
+  <div class="loading-content">
+    <!-- Motorrad-Logo -->
+    <div class="logo-wrapper">
+      <img src="assets/images/logo.png" alt="MotoTrack Logo" class="loading-logo" />
+    </div>
+
+    <!-- Loading Text -->
+    <div class="loading-text">
+      <h2>MotoTrack wird geladen…</h2>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-wrapper">
+      <ion-progress-bar
+        type="determinate"
+        [value]="progressPercent / 100"
+        class="custom-progress-bar"
+      ></ion-progress-bar>
+      <div class="progress-text">{{ progressText }}</div>
+    </div>
+
+    <!-- Optional: Dots Animation -->
+    <div class="dots-animation">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+  </div>
+</ion-content>

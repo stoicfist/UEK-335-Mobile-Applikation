@@ -29,11 +29,17 @@ ion-fab {
   margin: 16px;
 }
 
+/* Ensure top-left search FAB is below status bar/notch */
+ion-fab[vertical="top"][horizontal="start"] {
+  top: calc(env(safe-area-inset-top, 0px) + 60px);
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
+}
+
 /* Route Info Badge */
 .route-info-badge {
   position: absolute;
-  top: 80px;
-  left: 16px;
+  top: calc(env(safe-area-inset-top, 0px) + 130px);
+  left: calc(env(safe-area-inset-left, 0px) + 16px);
   z-index: 1000;
   
   ion-chip {
