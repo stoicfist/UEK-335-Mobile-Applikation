@@ -91,3 +91,39 @@ html.ion-palette-dark .ion-page {
   --background: rgba(220, 53, 69, 0.95);
   --color: white;
 }
+
+/* Dark-mode picker/alert readability (year select) */
+body.dark .alert-radio-label,
+html.ion-palette-dark .alert-radio-label,
+body.dark .alert-checkbox-label,
+html.ion-palette-dark .alert-checkbox-label {
+  color: var(--ion-color-success) !important;
+  opacity: 1 !important;
+}
+
+body.dark .alert-radio-label.alert-radio-label-checked,
+html.ion-palette-dark .alert-radio-label.alert-radio-label-checked {
+  color: var(--ion-color-success) !important;
+}
+
+body.dark .alert-radio-icon,
+html.ion-palette-dark .alert-radio-icon {
+  border-color: var(--ion-color-primary);
+}
+
+body.dark .alert-radio-icon.alert-radio-icon-checked,
+html.ion-palette-dark .alert-radio-icon.alert-radio-icon-checked {
+  background: var(--ion-color-primary);
+}
+
+body.dark .alert-wrapper,
+html.ion-palette-dark .alert-wrapper {
+  background: var(--ion-background-color);
+}
+
+body.dark ion-popover ion-item,
+html.ion-palette-dark ion-popover ion-item,
+body.dark ion-popover ion-label,
+html.ion-palette-dark ion-popover ion-label {
+  color: var(--ion-color-success);
+}
