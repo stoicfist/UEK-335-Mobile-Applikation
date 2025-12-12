@@ -15,6 +15,22 @@
 
   <ion-list>
     <ion-list-header>
+      <ion-label>Systemstatus</ion-label>
+    </ion-list-header>
+    <ion-item lines="full">
+      <ion-icon slot="start" [name]="(isOnline$ | async) ? 'wifi' : 'wifi-off'" [color]="(isOnline$ | async) ? 'success' : 'danger'"></ion-icon>
+      <ion-label>
+        <h2>Netzwerk</h2>
+        <p>{{ (isOnline$ | async) ? 'Online' : 'Offline' }}</p>
+      </ion-label>
+      <ion-badge slot="end" [color]="(isOnline$ | async) ? 'success' : 'danger'">
+        {{ (isOnline$ | async) ? 'Online' : 'Offline' }}
+      </ion-badge>
+    </ion-item>
+  </ion-list>
+
+  <ion-list>
+    <ion-list-header>
       <ion-label>Appearance</ion-label>
     </ion-list-header>
     <ion-item>
@@ -26,6 +42,46 @@
         [checked]="(darkMode$ | async)" 
         (ionChange)="onDarkModeToggle($event)">
       </ion-toggle>
+    </ion-item>
+  </ion-list>
+
+  <ion-list>
+    <ion-list-header>
+      <ion-label>Über die App</ion-label>
+    </ion-list-header>
+    <ion-item lines="full">
+      <ion-icon slot="start" name="information-circle-outline" color="primary"></ion-icon>
+      <ion-label>
+        <h2>MotoTrack</h2>
+        <p>ÜK 335 – Mobile Applikationen realisieren</p>
+        <ion-note color="medium">Ionic · Angular · Capacitor · Supabase</ion-note>
+      </ion-label>
+      <ion-badge slot="end" color="medium">v1.0.0</ion-badge>
+    </ion-item>
+    <ion-item lines="none">
+      <ion-icon slot="start" name="person-circle-outline" color="primary"></ion-icon>
+      <ion-label>
+        <h2>Entwickler</h2>
+        <p>Peter Ngo</p>
+      </ion-label>
+    </ion-item>
+  </ion-list>
+
+  <ion-list>
+    <ion-list-header>
+      <ion-label>Geräteschnittstellen</ion-label>
+    </ion-list-header>
+    <ion-item lines="full">
+      <ion-icon slot="start" name="navigate-outline" color="primary"></ion-icon>
+      <ion-label>Standort (Geolocation)</ion-label>
+    </ion-item>
+    <ion-item lines="full">
+      <ion-icon slot="start" name="cloud-outline" color="primary"></ion-icon>
+      <ion-label>Netzwerkstatus</ion-label>
+    </ion-item>
+    <ion-item lines="none">
+      <ion-icon slot="start" name="save-outline" color="primary"></ion-icon>
+      <ion-label>Lokale Speicherung</ion-label>
     </ion-item>
   </ion-list>
 </ion-content>
