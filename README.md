@@ -1,19 +1,3 @@
-## Offline-Tracking & Synchronisation
-
-Die App unterstützt Offline‑Aufnahme von Touren. Verhalten im Kurzüberblick:
-- Wenn das Gerät offline ist, werden abgeschlossene Touren lokal (LocalStorage) unter dem Key `pendingTours` zwischengespeichert.
-- Sobald die App wieder online ist, versucht die App automatisch alle `pendingTours` zu Supabase zu synchronisieren.
-- Nach erfolgreichem Upload werden die lokal gespeicherten Einträge gelöscht.
-
-So testest du das Feature lokal:
-
-1. Starte den Dev-Server mit Proxy: `npm run start:proxy` und öffne http://localhost:4200
-2. Öffne DevTools → Network → wähle `Offline`.
-3. Starte und beende eine Aufnahme in der App (Recording). Die Tour wird lokal gespeichert.
-4. Prüfe `Application` → `Local Storage` → `pendingTours` in DevTools.
-5. Setze Network wieder auf `Online`. Die App zeigt einen Toast mit dem Ergebnis der Synchronisation und entfernt erfolgreich hochgeladene Einträge aus `pendingTours`.
-
-Hinweis: Für sehr große oder viele Tracks ist IndexedDB robuster als LocalStorage; aktuell verwenden wir LocalStorage für Einfachheit. Wenn du größere Datenmengen erwartest, kann ich das auf IndexedDB (z.B. mit `idb`) umstellen.
 # MotoTrack – Motorrad Routen-Tracker  
 Mobile Hybrid-App (Ionic / Angular / Capacitor)
 
@@ -114,3 +98,23 @@ Beispiel:
 [
   { "lat": 47.12345, "lng": 8.12345, "timestamp": 1681234567890 }
 ]
+```
+
+---
+
+## Offline-Tracking & Synchronisation
+
+Die App unterstützt Offline‑Aufnahme von Touren. Verhalten im Kurzüberblick:
+- Wenn das Gerät offline ist, werden abgeschlossene Touren lokal (LocalStorage) unter dem Key `pendingTours` zwischengespeichert.
+- Sobald die App wieder online ist, versucht die App automatisch alle `pendingTours` zu Supabase zu synchronisieren.
+- Nach erfolgreichem Upload werden die lokal gespeicherten Einträge gelöscht.
+
+So testest du das Feature lokal:
+
+1. Starte den Dev-Server mit Proxy: `npm run start:proxy` und öffne http://localhost:4200
+2. Öffne DevTools → Network → wähle `Offline`.
+3. Starte und beende eine Aufnahme in der App (Recording). Die Tour wird lokal gespeichert.
+4. Prüfe `Application` → `Local Storage` → `pendingTours` in DevTools.
+5. Setze Network wieder auf `Online`. Die App zeigt einen Toast mit dem Ergebnis der Synchronisation und entfernt erfolgreich hochgeladene Einträge aus `pendingTours`.
+
+Hinweis: Für sehr große oder viele Tracks ist IndexedDB robuster als LocalStorage; aktuell verwenden wir LocalStorage für Einfachheit. Wenn du größere Datenmengen erwartest, kann ich das auf IndexedDB (z.B. mit `idb`) umstellen.
